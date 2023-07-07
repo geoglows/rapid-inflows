@@ -188,12 +188,19 @@ def rapid_namelist_from_directories(vpu_directory: str,
     return
 
 
-vpu_dir = '/Volumes/EB406_T7_2/GEOGLOWS2/rapid_files/718'
-inflow_dir = '/Volumes/EB406_T7_2/GEOGLOWS2/inflows/718'
-namelist_dir = '/Volumes/EB406_T7_2/GEOGLOWS2/namelists/718'
-output_dir = '/Volumes/EB406_T7_2/GEOGLOWS2/outputs/718'
+if __name__ == '__main__':
+    vpu_dirs = '/mnt/inputs'
+    inflow_dirs = '/mnt/inflows'
+    namelist_dirs = '/mnt/namelists'
+    output_dirs = '/mnt/outputs'
 
-rapid_namelist_from_directories(vpu_directory=vpu_dir,
-                                inflows_directory=inflow_dir,
-                                namelists_directory=namelist_dir,
-                                outputs_directory=output_dir, )
+    all_vpu_dirs = [x for x in glob.glob(os.path.join(vpu_dirs, '*')) if os.path.isdir(x)]
+    for vpu_dir in all_vpu_dirs:
+        inflow_dir = os.path.join(inflow_dirs, os.path.basename(vpu_dir))
+        namelist_dir = os.path.join(namelist_dirs, os.path.basename(vpu_dir))
+        output_dir = os.path.join(output_dirs, os.path.basename(vpu_dir))
+
+        rapid_namelist_from_directories(vpu_directory=vpu_dir,
+                                        inflows_directory=inflow_dir,
+                                        namelists_directory=namelist_dir,
+                                        outputs_directory=output_dir, )
