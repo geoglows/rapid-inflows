@@ -63,40 +63,59 @@ def inflow_fast(lsm_file_list: list, weight_table: str, rapid_connect: str, out_
     lon_slice = slice(min_lon_i, max_lon_i+1)
     lat_slice = slice(min_lat_i, max_lat_i+1)
 
-    # open all the ncs and select only the area in the weight table to an array
-    dataset = xr.open_mfdataset(lsm_file_list)
-    data = dataset.isel(latitude=lat_slice, longitude=lon_slice, time=slice(0, len(time_array)))['ro'].values
-    dataset.close()
-
-    # remove any negative numbers
-    data = np.maximum(data, 0.0)
-
     # for readability, select certain cols from the weight table
     stream_ids = weight_df['streamID'].values
     lat_indices = weight_df['lat_index'].values - min_lat_i
     lon_indices = weight_df['lon_index'].values - min_lon_i
     area_sqm = weight_df['area_sqm'].values
 
+    # open all the ncs and select only the area in the weight table to an array
+    # check if we need to merge a fourth dimension
     # We use fancy indexing to multiply the areas (This results in a big array, rows are each time step, columns are each reach id (which may be more than 1))
-    big_array = data[:, lat_indices, lon_indices] * area_sqm * conversion_factor
-
     # This is actaully faster than any numpy operations I've found. Make a dataframe, group by stream id, sum up groups, and return a numpy array
-    output_array = (
-        pd.DataFrame(big_array, index=date_range, columns=stream_ids)
-        .groupby(by=stream_ids, axis=1)
-        .sum()
-        .to_numpy()
-    )
+    dataset = xr.open_mfdataset(lsm_file_list).isel(latitude=lat_slice, longitude=lon_slice, time=slice(0, len(time_array)))['ro']
+    
+    # if the input nc files/file is not daily, get the time array directly from the dataset (probably could be done always but not sure it that's the case)
+    if time_array.shape[0] != len(dataset['time']):
+        time_array = dataset['time'].to_numpy()
 
-    # Replace 0's with nan
-    output_array = np.where(output_array == 0, np.nan, output_array)
+    if dataset.ndim == 3:
+        output_array = (
+            pd.DataFrame(
+                dataset.values[:, lat_indices, lon_indices] * area_sqm * conversion_factor,
+                columns=stream_ids
+            )
+            .groupby(by=stream_ids, axis=1)
+            .sum()
+            .to_numpy()
+        )
+    elif dataset.ndim == 4:
+        ro = dataset.values[:,:,lat_indices, lon_indices] * area_sqm * conversion_factor
+        output_array = (
+            pd.DataFrame(
+                np.where(np.isnan(ro[:,0,:]), ro[:,1,:], ro[:,0,:]),
+                columns=stream_ids
+            )
+            .groupby(by=stream_ids, axis=1)
+            .sum()
+            .to_numpy()
+        )
+    else:
+        ndims = dataset.ndim
+        dataset.close()
+        raise ValueError(f"Got {ndims} dimensions; expected 3 or 4")
+    
+    dataset.close()
+
+    # Negative and zero values are set to nan
+    output_array = np.where(output_array <=0, np.nan, output_array)
 
     # Create output inflow netcdf data
     print("Generating inflow file ...")
     data_out_nc = Dataset(out_nc_file, "w", format="NETCDF3_CLASSIC")
 
     # create dimensions
-    data_out_nc.createDimension('time', date_range.shape[0])
+    data_out_nc.createDimension('time', time_array.shape[0])
     data_out_nc.createDimension('rivid', len(rivid_list))
     data_out_nc.createDimension('nv', 2)
 
@@ -122,7 +141,7 @@ def inflow_fast(lsm_file_list: list, weight_table: str, rapid_connect: str, out_
         time_var = data_out_nc.createVariable('time', 'i4', ('time',))
         time_var.long_name = 'time'
         time_var.standard_name = 'time'
-        time_var.units = f'days since {simulation_start_datetime}'
+        time_var.units = f'seconds since {simulation_start_datetime}' # Must be seconds, otherwise it freaks out?
         time_var.axis = 'T'
         time_var.calendar = 'gregorian'
         time_var.bounds = 'time_bnds'
