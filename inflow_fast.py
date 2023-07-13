@@ -5,13 +5,14 @@ Based off work by Cedric H. David and Riley Hales
 
 import xarray as xr
 import pandas as pd
-from datetime import datetime
 import numpy as np
+import os
+
+from datetime import datetime
 from netCDF4 import Dataset
 from pytz import utc
 
-def inflow_fast(lsm_file_list: list, weight_table: str, rapid_connect: str, out_nc_file: str, comid_lat_lon_z: str, 
-    simulation_start_datetime: datetime, simulation_end_datetime: datetime, conversion_factor: float = 1.0) -> None:
+def inflow_fast(lsm_file_list: list, weight_table: str, inputs: str, out_nc_file: str) -> None:
     """
     Generate inflow files for RAPID. Note that the order of the streams in the csvs (besides the weight table) should all match. 
     If you get warnings from hdf5, run 'pip uninstall numpy' and then 'conda install numpy'
@@ -21,29 +22,22 @@ def inflow_fast(lsm_file_list: list, weight_table: str, rapid_connect: str, out_
     lsm_file_list: list
         List of netcdf files in the format YYYYMMDD.nc that contain a variable 'ro', or runoff
     weight_table: str
-        Path to weight table
-    rapid_connect: str
-        Path to rapid connect file
-    out_file: str
+        Path to the weight table
+    inputs: str
+        Path to the directory containing 'comid_lat_lon_z.csv'
+    out_nc_file: str
         Path and name of the output netcdf
-    comid_lat_lon_z: str
-        Path to the comid_lat_lon_z file
-    simulation_start_datetime: datetime
-        Simulation start time as a datetime object 
-    simulation_end_datetime: datetime
-        Simulation end time as a datetime object 
-    conversion_factor: float, optional
-        Number to multiply the run off by, default is 1 (no conversion)
     """
     # load in weight table and get some information
     weight_df = pd.read_csv(weight_table)
 
-    date_range = pd.date_range(start=simulation_start_datetime, end=simulation_end_datetime)
-    rivid_list = pd.read_csv(rapid_connect, dtype=int, header=None)[0].to_numpy()
+    # load in comid_lat_lon_csv
+    comid_lat_lon_z = os.path.join(inputs, 'comid_lat_lon_z.csv')
+    if not os.path.exists(comid_lat_lon_z):
+        raise ValueError(f'{comid_lat_lon_z} does not exist')
 
-    initial_time_seconds = (simulation_start_datetime.replace(tzinfo=utc) - datetime(1970, 1, 1, tzinfo=utc)).total_seconds()
-    final_time_seconds = initial_time_seconds + date_range.shape[0] * 86400 # This is the number of seconds in a day
-    time_array = np.arange(initial_time_seconds, final_time_seconds, 86400)
+    comid_df = pd.read_csv(comid_lat_lon_z)
+    rivid_list = comid_df.iloc[:,0].to_numpy()
 
     min_lon = weight_df['lon'].min()
     max_lon = weight_df['lon'].max()
@@ -69,16 +63,27 @@ def inflow_fast(lsm_file_list: list, weight_table: str, rapid_connect: str, out_
     lon_indices = weight_df['lon_index'].values - min_lon_i
     area_sqm = weight_df['area_sqm'].values
 
-    # open all the ncs and select only the area in the weight table to an array
+    # open all the ncs and select only the area within the weight table 
+    dataset = (
+        xr.open_mfdataset(lsm_file_list)
+        .isel(latitude=lat_slice, longitude=lon_slice)
+        ['ro']
+    )
+    
+    # Get conversion factor
+    if dataset.attrs['units'] == 'm':
+        conversion_factor = 1
+    elif dataset.attrs['units'] == 'mm':
+        conversion_factor = .001
+    else:
+        print(f"WARNING: unsupported conversion factor {dataset.attrs['units']} found. Using one by default...")
+
+    # get the time array from the dataset
+    time_array = dataset['time'].to_numpy()
+
     # check if we need to merge a fourth dimension
     # We use fancy indexing to multiply the areas (This results in a big array, rows are each time step, columns are each reach id (which may be more than 1))
     # This is actaully faster than any numpy operations I've found. Make a dataframe, group by stream id, sum up groups, and return a numpy array
-    dataset = xr.open_mfdataset(lsm_file_list).isel(latitude=lat_slice, longitude=lon_slice, time=slice(0, len(time_array)))['ro']
-    
-    # if the input nc files/file is not daily, get the time array directly from the dataset (probably could be done always but not sure it that's the case)
-    if time_array.shape[0] != len(dataset['time']):
-        time_array = dataset['time'].to_numpy()
-
     if dataset.ndim == 3:
         output_array = (
             pd.DataFrame(
@@ -137,16 +142,15 @@ def inflow_fast(lsm_file_list: list, weight_table: str, rapid_connect: str, out_
 
         rivid_var[:] = rivid_list
 
-        # time
         time_var = data_out_nc.createVariable('time', 'i4', ('time',))
         time_var.long_name = 'time'
         time_var.standard_name = 'time'
-        time_var.units = f'seconds since {simulation_start_datetime}' # Must be seconds, otherwise it freaks out?
+        time_var.units = f'seconds since {time_array[0]}' # Must be seconds
         time_var.axis = 'T'
         time_var.calendar = 'gregorian'
         time_var.bounds = 'time_bnds'
 
-        time_var[:] = time_array
+        time_var[:] = (time_array - time_array[0]).astype('timedelta64[s]')
 
         # time_bnds
         _ = data_out_nc.createVariable('time_bnds', 'i4', ('time', 'nv',))
@@ -181,7 +185,6 @@ def inflow_fast(lsm_file_list: list, weight_table: str, rapid_connect: str, out_
         lons = data_out_nc.variables['lon'][:]
 
         # Process each row in the comid table
-        comid_df = pd.read_csv(comid_lat_lon_z)
         lats = comid_df['lat'].values
         lons = comid_df['lon'].values
 
