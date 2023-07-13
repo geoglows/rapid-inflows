@@ -7,6 +7,7 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 import os
+import psutil
 
 from datetime import datetime
 from netCDF4 import Dataset
@@ -69,6 +70,16 @@ def inflow_fast(lsm_file_list: list, weight_table: str, inputs: str, out_nc_file
         .isel(latitude=lat_slice, longitude=lon_slice)
         ['ro']
     )
+
+    # Get aproximate sizes of arrays and check if we have enough memory
+    out_array_size = dataset['time'].shape[0] * rivid_list.shape[0]
+    in_array_size = dataset['time'].shape[0] * area_sqm.shape[0]
+    if dataset.ndim == 4:
+        in_array_size *= 2
+        total_size = out_array_size + in_array_size
+    else:
+        total_size = np.maximum(in_array_size, out_array_size)
+    memory_check(total_size)
     
     # Get conversion factor
     if dataset.attrs['units'] == 'm':
@@ -105,6 +116,7 @@ def inflow_fast(lsm_file_list: list, weight_table: str, inputs: str, out_nc_file
             .sum()
             .to_numpy()
         )
+        del ro
     else:
         ndims = dataset.ndim
         dataset.close()
@@ -208,3 +220,13 @@ def inflow_fast(lsm_file_list: list, weight_table: str, inputs: str, out_nc_file
         data_out_nc.close()
 
     print('Finished inflows') 
+
+def memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: float = 0.8):
+    num_bytes = np.dtype(dtype).itemsize * size
+    total_mem = psutil.virtual_memory().total
+
+    if num_bytes >= total_mem:
+        raise MemoryError(f"Trying to allocate {psutil._common.bytes2human(num_bytes)} of {psutil._common.bytes2human(total_mem)} available")
+    if num_bytes >= total_mem * ram_buffer_percentage:
+        print(f"WARNING: arrays will use ~{round(num_bytes/total_mem, 1)}% of \
+        {psutil._common.bytes2human(total_mem)} available memory...")
