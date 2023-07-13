@@ -21,9 +21,9 @@ def inflow_fast(lsm_file_list: list, weight_table: str, inputs: str, out_nc_file
     Parameters
     ----------
     lsm_file_list: list
-        List of netcdf files in the format YYYYMMDD.nc that contain a variable 'ro', or runoff
+        List of netcdf files that contain a variable 'ro'. Dimension expected in the order (time, latitude, longitude) or (time, expver, latitude, longitude)
     weight_table: str
-        Path to the weight table
+        Path and name of the weight table
     inputs: str
         Path to the directory containing 'comid_lat_lon_z.csv'
     out_nc_file: str
@@ -79,7 +79,7 @@ def inflow_fast(lsm_file_list: list, weight_table: str, inputs: str, out_nc_file
         total_size = out_array_size + in_array_size
     else:
         total_size = np.maximum(in_array_size, out_array_size)
-    memory_check(total_size)
+    _memory_check(total_size)
     
     # Get conversion factor
     if dataset.attrs['units'] == 'm':
@@ -221,12 +221,18 @@ def inflow_fast(lsm_file_list: list, weight_table: str, inputs: str, out_nc_file
 
     print('Finished inflows') 
 
-def memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: float = 0.8):
+def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: float = 0.8):
+    """
+    Internal function to check if the arrays we create will be larger than the memory available. 
+    Also warns against very large arrays. Default datatype of arrays is np.float32.
+    By default, the warning will be announced if memory consumption is projected to be greater than 
+    80% of avaiable memory
+    """
     num_bytes = np.dtype(dtype).itemsize * size
-    total_mem = psutil.virtual_memory().total
+    available_mem = psutil.virtual_memory().available
 
-    if num_bytes >= total_mem:
-        raise MemoryError(f"Trying to allocate {psutil._common.bytes2human(num_bytes)} of {psutil._common.bytes2human(total_mem)} available")
-    if num_bytes >= total_mem * ram_buffer_percentage:
-        print(f"WARNING: arrays will use ~{round(num_bytes/total_mem, 1)}% of \
-        {psutil._common.bytes2human(total_mem)} available memory...")
+    if num_bytes >= available_mem:
+        raise MemoryError(f"Trying to allocate {psutil._common.bytes2human(num_bytes)} of {psutil._common.bytes2human(available_mem)} available")
+    if num_bytes >= available_mem * ram_buffer_percentage:
+        print(f"WARNING: arrays will use ~{round(num_bytes/available_mem, 1)}% of \
+        {psutil._common.bytes2human(available_mem)} available memory...")
