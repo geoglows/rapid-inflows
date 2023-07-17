@@ -165,11 +165,11 @@ def rapid_namelist_from_directories(vpu_directory: str,
         timestep_inp_runoff = 24 * 60 * 60
 
         write_qfinal_file: bool = True
-        qfinal_file: str = os.path.join(outputs_directory, f'Qfinal_{vpu_code}_{end_date}.csv')
+        qfinal_file: str = os.path.join(outputs_directory, f'Qfinal_{vpu_code}_{end_date}.nc')
 
         use_qinit_file = idx > 0
         qinit_file = os.path.join(
-            outputs_directory, f'Qfinal_{vpu_code}_{inflow_files[idx - 1].split("_")[-1]}.csv'
+            outputs_directory, f'Qfinal_{vpu_code}_{inflow_files[idx - 1].split("_")[-1]}'
         ) if use_qinit_file else ''
 
         rapid_namelist(namelist_save_path=namelist_save_path,
