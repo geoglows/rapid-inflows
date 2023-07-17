@@ -148,10 +148,13 @@ def rapid_namelist_from_directories(vpu_directory: str,
     for x in (k_file, x_file, riv_bas_id_file, rapid_connect_file):
         assert os.path.exists(x), f'{x} does not exist'
 
+    os.makedirs(namelists_directory, exist_ok=True)
+    os.makedirs(outputs_directory, exist_ok=True)
+
     inflow_files = sorted(glob.glob(os.path.join(inflows_directory, '*.nc')))
     for idx, inflow_file in enumerate(inflow_files):
-        start_date = os.path.basename(inflow_file).split('_')[2]
-        end_date = os.path.basename(inflow_file).split('_')[3].replace('.nc', '')
+        start_date = os.path.basename(inflow_file).split('_')[6]
+        end_date = os.path.basename(inflow_file).split('_')[7].replace('.nc', '')
         namelist_save_path = os.path.join(namelists_directory, f'rapid_namelist_{vpu_code}_{start_date}')
         vlat_file = inflow_file
         qout_file = os.path.join(outputs_directory, f'Qout_{vpu_code}_{start_date}_{end_date}.nc')  # todo
