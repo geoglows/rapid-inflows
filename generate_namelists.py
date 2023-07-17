@@ -155,7 +155,7 @@ def rapid_namelist_from_directories(vpu_directory: str,
     for idx, inflow_file in enumerate(inflow_files):
         start_date = os.path.basename(inflow_file).split('_')[6]
         end_date = os.path.basename(inflow_file).split('_')[7].replace('.nc', '')
-        namelist_save_path = os.path.join(namelists_directory, f'rapid_namelist_{vpu_code}_{start_date}')
+        namelist_save_path = os.path.join(namelists_directory, f'namelist_{vpu_code}_{start_date}')
         vlat_file = inflow_file
         qout_file = os.path.join(outputs_directory, f'Qout_{vpu_code}_{start_date}_{end_date}.nc')  # todo
 
