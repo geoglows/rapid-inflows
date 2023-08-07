@@ -7,6 +7,10 @@ on:
   pull_request:
     branches:
       - rapid-inflows  
+  workflow_dispatch:
+    branches:
+      - rapid-inflows  
+
 
 jobs:
   test:
