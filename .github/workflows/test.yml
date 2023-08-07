@@ -24,12 +24,7 @@ jobs:
     - name: Check Out Code
       uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.x  
-
-    - name: create environment with mamba
+    - name: Create environment with mamba
       uses: conda-incubator/setup-miniconda@v2
       with:
         mamba-version: "*"
