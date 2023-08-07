@@ -1,3 +1,4 @@
-print('Hello world!')
-import os
-print(os.listdir(os.getcwd()), os.getcwd())
+print('here')
+import subprocess
+subprocess.run(['python', 'inflow_fast.py'])
+
