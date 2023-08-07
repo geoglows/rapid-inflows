@@ -12,27 +12,52 @@ Things to test:
 """
 import glob
 import netCDF4 as nc
+import sys
+import os
+
+# Add the project_root directory to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(project_root)
+
 from inflows.inflow_fast import create_inflow_file
 
 create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),'./tests/inputs/weight_era5_721x1440_last_10.csv','./tests/inputs/comid_lat_lon_z_last_10.csv','./tests/test.nc')
 
-# Open the NetCDF file using the Dataset class
-with nc.Dataset('./tests/validation/1980_01_01to10_last10.nc', 'r') as validation_ds:
-    with nc.Dataset('./tests/test.nc', 'r') as test_dataset:
-        # Access the variables, attributes, and dimensions in the dataset
-        # For example, to get the dimensions:
-        dimensions = test_dataset.dimensions
-        print("Dimensions:", dimensions)
-        
-        # To access a specific variable:
-        variable_name = 'temperature'  # Replace this with the variable name you want to access
-        variable = test_dataset.variables[variable_name]
-        print("Variable:", variable)
-        
-        # To access a specific attribute of a variable:
-        attribute_name = 'units'  # Replace this with the attribute name you want to access
-        attribute_value = variable.getncattr(attribute_name)
-        print("Attribute Value:", attribute_value)
+out_ds = nc.Dataset('./tests/test.nc', 'r')
+val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
+
+try:
+    # Check dimensions match
+    assert out_ds.dimensions.keys() == val_ds.dimensions.keys(), "Dimensions do not match."
+    for key in out_ds.dimensions.keys():
+        if key == 'nv':
+            continue
+        assert not False in (out_ds[key][:] == val_ds[key][:]), f"{key} values differ"
+    
+    # Check m3 values match
+    assert not False in (out_ds['m3_riv'][:] == val_ds['m3_riv'][:]), "m3 values do not match."
+    
+    # Check time bounds match
+    assert not False in (out_ds['time_bnds'][:] == val_ds['time_bnds'][:]), "time bounds do not match."
+    
+    # Check lon match
+    assert not False in (out_ds['lon'][:] == val_ds['lon'][:]), "lon values do not match."
+    
+    # Check lat match
+    assert not False in (out_ds['lat'][:] == val_ds['lat'][:]), "lat values do not match."
+    
+    # Check CRS is EPSG 4326
+    assert out_ds['crs'].epsg_code == val_ds['crs'].epsg_code, "CRS is not EPSG 4326."
+    
+    print("All tests passed.")
+    
+except AssertionError as e:
+    print(f"Test failed: {e}")
+
+finally:
+    # Close the datasets
+    out_ds.close()
+    val_ds.close()
 
 
 
