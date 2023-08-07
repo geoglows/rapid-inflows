@@ -24,6 +24,11 @@ jobs:
     - name: Check Out Code
       uses: actions/checkout@v3
 
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.11
+
     - name: Create environment with mamba
       uses: conda-incubator/setup-miniconda@v2
       with:
@@ -35,4 +40,6 @@ jobs:
 
     - name: Run Tests
       run: |
-        python /tests/test.py  # Replace this with the actual path to your script
+        conda install pytest
+        pytest
+      # python ./tests/test.py  # Replace this with the actual path to your script
