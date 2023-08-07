@@ -41,4 +41,3 @@ jobs:
     - name: Run Tests
       run: |
         python ./tests/test_compare.py
-      # python ./tests/test.py  # Replace this with the actual path to your script
