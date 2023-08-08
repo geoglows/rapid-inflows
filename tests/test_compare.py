@@ -64,8 +64,8 @@ out_ds = nc.Dataset('./tests/test.nc', 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
 
 # TEST 2: Multiple weight tables
-input_tuples = [('./tests/inputs/test_2/region1/weight_era5_split_1.csv', './tests/inputs/test_2/region1/comid_lat_lon_z_1.csv', './tests/test_1.nc'),
-                ('./tests/inputs/test_2/region2/weight_era5_split_2.csv', './tests/inputs/test_2/region2/comid_lat_lon_z_2.csv', './tests/test_2.nc')]
+input_tuples = [('./tests/inputs/test_2/region1/weight_era5_721x1440_split_1.csv', './tests/inputs/test_2/region1/comid_lat_lon_z_1.csv', './tests/test_1.nc'),
+                ('./tests/inputs/test_2/region2/weight_era5_721x1440_split_2.csv', './tests/inputs/test_2/region2/comid_lat_lon_z_2.csv', './tests/test_2.nc')]
 create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),input_tuples=input_tuples)
 
 out_ds_1 = nc.Dataset('./tests/test_1.nc', 'r')
