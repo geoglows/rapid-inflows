@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import re
 from datetime import datetime
 
 import netCDF4 as nc
@@ -41,8 +42,7 @@ def create_inflow_file(lsm_file_list: list,
     """
     Generate inflow files for use with RAPID. The generated inflow file will sort the river ids in the order found in
     the comid_lat_lon_z csv. Either weight_table, comid_lat_lon_z, and inflow_file_path are defined explicitly, or 
-    input_tuples is defined. Input_tuples is a list of iterable objects likle the following: [(weight.csv, comid.csv, out.nc),
-    (weight_1.csv), comid_1.csv, out_1.nc) ...]
+    input_tuples is defined. 
 
     Parameters
     ----------
@@ -55,6 +55,8 @@ def create_inflow_file(lsm_file_list: list,
         Path to the comid_lat_lon_z.csv corresponding to the weight table
     inflow_file_path: str
         Path and name of the output netcdf
+    input_tuples: list
+        A list of iterable objects likle the following: [(weight.csv, comid.csv, out.nc),(weight_1.csv), comid_1.csv, out_1.nc), ...]
     """
     # Create the input_tuples object if not created already: This will be what will be iterated
     if input_tuples is None:
@@ -78,6 +80,20 @@ def create_inflow_file(lsm_file_list: list,
     runoff_variable = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in lsm_dataset.variables][0]
     lon_variable = [x for x in ['lon', 'longitude', 'LONGITUDE', 'LON'] if x in lsm_dataset.variables][0]
     lat_variable = [x for x in ['lat', 'latitude', 'LATITUDE', 'LAT'] if x in lsm_dataset.variables][0]
+
+    # Check that the input table dimensions match the dataset dimensions
+    # We ignore time dimension
+    variable_dims = lsm_dataset[runoff_variable].dims
+    dataset_shape = [lsm_dataset[runoff_variable].shape[variable_dims.index(lat_variable)], 
+                    lsm_dataset[runoff_variable].shape[variable_dims.index(lon_variable)]]
+
+    for weight_table, _ ,_ in input_tuples:
+        matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
+        if len(matches) == 2:
+            if all(int(item) in dataset_shape for item in matches):
+                continue
+            raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
+        raise ValueError(f"Could not find a shape (###x####) in {weight_table}. Consider renaming")
 
     # Iterate over each weight table
     for weight_table, comid_lat_lon_z, inflow_file_path in input_tuples:
