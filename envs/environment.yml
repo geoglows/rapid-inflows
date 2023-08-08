@@ -2,14 +2,13 @@ name: inflows
 channels:
   - defaults
   - conda-forge
-  - bioconda
 dependencies:
-  - dask=2023.6.0
-  - netcdf4=1.6.2
-  - numpy=1.25.0
-  - pandas=1.5.3
-  - psutil=5.9.0
-  - pyarrow=11.0.0
-  - pytest=7.4.0
-  - python=3.11.4
-  - xarray=2023.6.0
+  - dask
+  - netcdf4
+  - numpy
+  - pandas
+  - psutil
+  - pyarrow
+  - pytest
+  - python
+  - xarray
