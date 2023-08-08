@@ -32,19 +32,19 @@ try:
     for key in out_ds.dimensions.keys():
         if key == 'nv':
             continue
-        assert not False in (out_ds[key][:] == val_ds[key][:]), f"{key} values differ"
+        assert (out_ds[key][:] == val_ds[key][:]).all(), f"{key} values differ"
     
     # Check m3 values match
-    assert not False in (out_ds['m3_riv'][:] == val_ds['m3_riv'][:]), "m3 values do not match."
+    assert (out_ds['m3_riv'][:] == val_ds['m3_riv'][:]).all(), "m3 values do not match."
     
     # Check time bounds match
-    assert not False in (out_ds['time_bnds'][:] == val_ds['time_bnds'][:]), "time bounds do not match."
+    assert (out_ds['time_bnds'][:] == val_ds['time_bnds'][:]).all(), "time bounds do not match."
     
     # Check lon match
-    assert not False in (out_ds['lon'][:] == val_ds['lon'][:]), "lon values do not match."
+    assert (out_ds['lon'][:] == val_ds['lon'][:]).all(), "lon values do not match."
     
     # Check lat match
-    assert not False in (out_ds['lat'][:] == val_ds['lat'][:]), "lat values do not match."
+    assert (out_ds['lat'][:] == val_ds['lat'][:]).all(), "lat values do not match."
     
     # Check CRS is EPSG 4326
     assert out_ds['crs'].epsg_code == val_ds['crs'].epsg_code, "CRS is not EPSG 4326."
