@@ -1,5 +1,5 @@
 # rapid_inflows
-Rapid Inflows is a python interface for RAPID that assists to prepare inflow data. Gridded runoff data is taken in, along with lists of basins and their area. The runoff for each basin is calculated for every time step, and the resulting flows are written to an output inflow datset, the main dataset used by RAPID. More information about RAPID can be found [here](http://rapid-hub.org).
+Rapid Inflows provides a function that prepares inflow data for RAPID . Gridded runoff data is taken in, along with lists of basins and their area. The runoff for each basin is calculated for every time step, and the resulting flows are written to an output inflow datset, the main dataset used by RAPID. More information about RAPID can be found [here](http://rapid-hub.org).
 
 ## Inputs
 The `create_inflow_file` function takes in four parameters: 
