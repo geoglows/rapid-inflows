@@ -63,9 +63,4 @@ create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),'.
 out_ds = nc.Dataset('./tests/test.nc', 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
 
-out_ds_1 = nc.Dataset('./tests/test_1.nc', 'r')
-validation_ds_1 = nc.Dataset('./tests/validation/1980_01_01to10_split_1.nc', 'r')
-out_ds_2 = nc.Dataset('./tests/test_2.nc', 'r')
-validation_ds_2 = nc.Dataset('./tests/validation/1980_01_01to10_split_2.nc', 'r')
-
 check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
