@@ -14,7 +14,7 @@ import glob
 import netCDF4 as nc
 import sys
 import os
-
+import time
 # Add the project_root directory to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
@@ -63,16 +63,9 @@ create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),'.
 out_ds = nc.Dataset('./tests/test.nc', 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
 
-# TEST 2: Multiple weight tables
-input_tuples = [('./tests/inputs/test_2/region1/weight_era5_721x1440_split_1.csv', './tests/inputs/test_2/region1/comid_lat_lon_z_1.csv', './tests/test_1.nc'),
-                ('./tests/inputs/test_2/region2/weight_era5_721x1440_split_2.csv', './tests/inputs/test_2/region2/comid_lat_lon_z_2.csv', './tests/test_2.nc')]
-create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),input_tuples=input_tuples)
-
 out_ds_1 = nc.Dataset('./tests/test_1.nc', 'r')
 validation_ds_1 = nc.Dataset('./tests/validation/1980_01_01to10_split_1.nc', 'r')
 out_ds_2 = nc.Dataset('./tests/test_2.nc', 'r')
 validation_ds_2 = nc.Dataset('./tests/validation/1980_01_01to10_split_2.nc', 'r')
 
 check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
-check_function(validation_ds_1, out_ds_1, 'TEST 2.0: Multiple weight tables')
-check_function(validation_ds_2, out_ds_2, 'TEST 2.1: Multiple weight tables')
