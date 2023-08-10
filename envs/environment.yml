@@ -1,0 +1,14 @@
+name: inflows
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - dask
+  - netcdf4
+  - numpy
+  - pandas
+  - psutil
+  - pyarrow
+  - pytest
+  - python
+  - xarray

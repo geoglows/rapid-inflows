@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import re
 from datetime import datetime
 
 import netCDF4 as nc
@@ -34,29 +35,57 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
 
 
 def create_inflow_file(lsm_file_list: list,
-                       weight_table: str,
-                       comid_lat_lon_z: str,
-                       inflow_file_path: str) -> None:
+                       weight_table: str = None,
+                       comid_lat_lon_z: str = None,
+                       inflow_file_path: str = None,
+                       input_tuples: list = None,) -> None:
     """
     Generate inflow files for use with RAPID. The generated inflow file will sort the river ids in the order found in
-    the comid_lat_lon_z csv.
+    the comid_lat_lon_z csv. Either weight_table, comid_lat_lon_z, and inflow_file_path are defined explicitly, or 
+    input_tuples is defined. 
 
     Parameters
     ----------
     lsm_file_list: list
         List of netcdf file paths. NCs should have dimensions order (time, latitude, longitude) or
         (time, expver, latitude, longitude)
-    weight_table: str
+    weight_table: str, list
         Path and name of the weight table
     comid_lat_lon_z: str
         Path to the comid_lat_lon_z.csv corresponding to the weight table
     inflow_file_path: str
         Path and name of the output netcdf
     """
+
+    # Ensure that every input file exists
     if not os.path.exists(weight_table):
         raise FileNotFoundError(f'{weight_table} does not exist')
     if not os.path.exists(comid_lat_lon_z):
         raise FileNotFoundError(f'{comid_lat_lon_z} does not exist')
+
+    # open all the ncs and select only the area within the weight table
+    logging.info('Opening LSM files multi-file dataset')
+    lsm_dataset = xr.open_mfdataset(lsm_file_list)
+
+    # Select the variable names
+    runoff_variable = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in lsm_dataset.variables][0]
+    lon_variable = [x for x in ['lon', 'longitude', 'LONGITUDE', 'LON'] if x in lsm_dataset.variables][0]
+    lat_variable = [x for x in ['lat', 'latitude', 'LATITUDE', 'LAT'] if x in lsm_dataset.variables][0]
+
+    # Check that the input table dimensions match the dataset dimensions
+    # This gets us the shape, while ignoring the time dimension
+    variable_dims = lsm_dataset[runoff_variable].dims
+    dataset_shape = [lsm_dataset[runoff_variable].shape[variable_dims.index(lat_variable)], 
+                    lsm_dataset[runoff_variable].shape[variable_dims.index(lon_variable)]]
+
+    matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
+    if len(matches) == 2:
+        if all(int(item) in dataset_shape for item in matches):
+            pass
+        else:
+            raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
+    else:
+        raise ValueError(f"Could not find a shape (###x####) in {weight_table}. Consider renaming")
 
     # load in weight table and get some information
     logging.info('Reading weight table and comid_lat_lon_z csvs')
@@ -86,14 +115,8 @@ def create_inflow_file(lsm_file_list: list,
     lat_indices = weight_df['lat_index'].values - min_lat_idx
     lon_indices = weight_df['lon_index'].values - min_lon_idx
 
-    # open all the ncs and select only the area within the weight table
-    logging.info('Opening LSM files multi-file dataset')
-    lsm_dataset = xr.open_mfdataset(lsm_file_list)
-    runoff_variable = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in lsm_dataset.variables][0]
-    lon_variable = [x for x in ['lon', 'longitude', 'LONGITUDE', 'LON'] if x in lsm_dataset.variables][0]
-    lat_variable = [x for x in ['lat', 'latitude', 'LATITUDE', 'LAT'] if x in lsm_dataset.variables][0]
     spatial_slices = {lon_variable: slice(min_lon_idx, max_lon_idx + 1),
-                      lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
+                    lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
 
     ds = (
         lsm_dataset
@@ -132,7 +155,7 @@ def create_inflow_file(lsm_file_list: list,
     if ds.ndim == 3:
         inflow_array = ds.values[:, lat_indices, lon_indices]
     elif ds.ndim == 4:
-        inflow_array = ds.values[:, :, lat_indices, lon_indices] * weight_df['area_sqm'].values * conversion_factor
+        inflow_array = ds.values[:, :, lat_indices, lon_indices]
         inflow_array = np.where(np.isnan(inflow_array[:, 0, :]), inflow_array[:, 1, :], inflow_array[:, 0, :]),
     else:
         raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
@@ -220,4 +243,5 @@ def create_inflow_file(lsm_file_list: list,
         inflow_nc.geospatial_lon_min = min_lon
         inflow_nc.geospatial_lon_max = max_lon
 
+    lsm_dataset.close()
     return
