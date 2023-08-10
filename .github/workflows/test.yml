@@ -1,4 +1,4 @@
-name: Test Python Script
+name: Validate Inflow NetCDFs
 
 on:
   [pull_request, workflow_dispatch]
