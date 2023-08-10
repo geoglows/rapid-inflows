@@ -1,7 +1,9 @@
+import argparse
+import glob
 import logging
 import os
-import sys
 import re
+import sys
 from datetime import datetime
 
 import netCDF4 as nc
@@ -35,14 +37,12 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
 
 
 def create_inflow_file(lsm_file_list: list,
-                       weight_table: str = None,
-                       comid_lat_lon_z: str = None,
-                       inflow_file_path: str = None,
-                       input_tuples: list = None,) -> None:
+                       weight_table: str,
+                       comid_lat_lon_z: str,
+                       inflow_file_path: str, ) -> None:
     """
     Generate inflow files for use with RAPID. The generated inflow file will sort the river ids in the order found in
-    the comid_lat_lon_z csv. Either weight_table, comid_lat_lon_z, and inflow_file_path are defined explicitly, or 
-    input_tuples is defined. 
+    the comid_lat_lon_z csv.
 
     Parameters
     ----------
@@ -75,8 +75,8 @@ def create_inflow_file(lsm_file_list: list,
     # Check that the input table dimensions match the dataset dimensions
     # This gets us the shape, while ignoring the time dimension
     variable_dims = lsm_dataset[runoff_variable].dims
-    dataset_shape = [lsm_dataset[runoff_variable].shape[variable_dims.index(lat_variable)], 
-                    lsm_dataset[runoff_variable].shape[variable_dims.index(lon_variable)]]
+    dataset_shape = [lsm_dataset[runoff_variable].shape[variable_dims.index(lat_variable)],
+                     lsm_dataset[runoff_variable].shape[variable_dims.index(lon_variable)]]
 
     matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
     if len(matches) == 2:
@@ -85,7 +85,7 @@ def create_inflow_file(lsm_file_list: list,
         else:
             raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
     else:
-        raise ValueError(f"Could not find a shape (###x####) in {weight_table}. Consider renaming")
+        raise ValueError(f"Could not validate the grid shape in {weight_table} filename")
 
     # load in weight table and get some information
     logging.info('Reading weight table and comid_lat_lon_z csvs')
@@ -116,7 +116,7 @@ def create_inflow_file(lsm_file_list: list,
     lon_indices = weight_df['lon_index'].values - min_lon_idx
 
     spatial_slices = {lon_variable: slice(min_lon_idx, max_lon_idx + 1),
-                    lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
+                      lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
 
     ds = (
         lsm_dataset
@@ -245,3 +245,35 @@ def create_inflow_file(lsm_file_list: list,
 
     lsm_dataset.close()
     return
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Create inflow file for LSM files and input directory.')
+
+    # Define the command-line argument
+    parser.add_argument('--lsmfiles', type=str, help='List of LSM files')
+    parser.add_argument('--inputdir', type=str, help='Inputs directory')
+    parser.add_argument('--inflowdir', type=str, help='Inflows directory')
+
+    args = parser.parse_args()
+
+    # Access the parsed argument
+    lsm_files = sorted(glob.glob(args.lsmfiles))
+    input_dir = args.inputdir
+    inflows_dir = args.inflowdir
+
+    if not all([lsm_files, input_dir, inflows_dir]):
+        raise ValueError('Missing required arguments')
+
+    # Create the inflow file for each LSM file
+    input_dir_name = os.path.basename(input_dir)
+    first_date = os.path.basename(lsm_files[0]).split('.')[0]
+    last_date = os.path.basename(lsm_files[-1]).split('.')[0]
+    create_inflow_file(lsm_files,
+                       os.path.join(input_dir, 'weight_era5_721x1440.csv'),
+                       os.path.join(input_dir, 'comid_lat_lon_z.csv'),
+                       os.path.join(inflows_dir, input_dir_name, f'm3_{input_dir_name}_{first_date}_{last_date}.nc'))
+
+
+if __name__ == '__main__':
+    main()
