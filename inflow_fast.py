@@ -36,24 +36,24 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
         {psutil._common.bytes2human(available_mem)} available memory...")
 
 
-def create_inflow_file(lsm_file_list: list,
+def create_inflow_file(lsm_directory: str,
+                       vpu_name: str,
+                       inflows_dir: str,
                        weight_table: str,
-                       comid_lat_lon_z: str,
-                       inflow_file_path: str, ) -> None:
+                       comid_lat_lon_z: str, ) -> None:
     """
     Generate inflow files for use with RAPID. The generated inflow file will sort the river ids in the order found in
     the comid_lat_lon_z csv.
 
     Parameters
     ----------
-    lsm_file_list: list
-        List of netcdf file paths. NCs should have dimensions order (time, latitude, longitude) or
-        (time, expver, latitude, longitude)
+    lsm_directory: str
+        Path to directory of LSM files which should end in .nc
     weight_table: str, list
         Path and name of the weight table
     comid_lat_lon_z: str
         Path to the comid_lat_lon_z.csv corresponding to the weight table
-    inflow_file_path: str
+    inflows_dir: str
         Path and name of the output netcdf
     """
 
@@ -65,7 +65,7 @@ def create_inflow_file(lsm_file_list: list,
 
     # open all the ncs and select only the area within the weight table
     logging.info('Opening LSM files multi-file dataset')
-    lsm_dataset = xr.open_mfdataset(lsm_file_list)
+    lsm_dataset = xr.open_mfdataset(sorted(glob.glob(os.path.join(lsm_directory, '*.nc'))))
 
     # Select the variable names
     runoff_variable = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in lsm_dataset.variables][0]
@@ -170,7 +170,12 @@ def create_inflow_file(lsm_file_list: list,
 
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
-    os.makedirs(os.path.dirname(inflow_file_path), exist_ok=True)
+    os.makedirs(os.path.join(inflows_dir, vpu_name), exist_ok=True)
+    start_date = datetime_array[0].strftime('%Y%m%d')
+    end_date = datetime_array[-1].strftime('%Y%m%d')
+    inflow_file_path = os.path.join(inflows_dir,
+                                    vpu_name,
+                                    f'm3_{os.path.basename(inflows_dir)}_{start_date}_{end_date}.nc)')
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
         inflow_nc.createDimension('time', datetime_array.shape[0])
@@ -251,28 +256,27 @@ def main():
     parser = argparse.ArgumentParser(description='Create inflow file for LSM files and input directory.')
 
     # Define the command-line argument
-    parser.add_argument('--lsmfiles', type=str, help='List of LSM files')
+    parser.add_argument('--lsmdir', type=str, help='Directory of LSM files')
     parser.add_argument('--inputdir', type=str, help='Inputs directory')
     parser.add_argument('--inflowdir', type=str, help='Inflows directory')
 
     args = parser.parse_args()
 
     # Access the parsed argument
-    lsm_files = sorted(glob.glob(args.lsmfiles))
+    lsm_dir = args.lsmdir
     input_dir = args.inputdir
     inflows_dir = args.inflowdir
 
-    if not all([lsm_files, input_dir, inflows_dir]):
+    if not all([lsm_dir, input_dir, inflows_dir]):
         raise ValueError('Missing required arguments')
 
     # Create the inflow file for each LSM file
     input_dir_name = os.path.basename(input_dir)
-    first_date = os.path.basename(lsm_files[0]).split('.')[0]
-    last_date = os.path.basename(lsm_files[-1]).split('.')[0]
-    create_inflow_file(lsm_files,
+    create_inflow_file(lsm_dir,
+                       input_dir_name,
+                       inflows_dir,
                        os.path.join(input_dir, 'weight_era5_721x1440.csv'),
-                       os.path.join(input_dir, 'comid_lat_lon_z.csv'),
-                       os.path.join(inflows_dir, input_dir_name, f'm3_{input_dir_name}_{first_date}_{last_date}.nc'))
+                       os.path.join(input_dir, 'comid_lat_lon_z.csv'), )
 
 
 if __name__ == '__main__':
