@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import sys
-from datetime import datetime
+import datetime
 
 import netCDF4 as nc
 import numpy as np
@@ -171,8 +171,8 @@ def create_inflow_file(lsm_directory: str,
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
     os.makedirs(os.path.join(inflows_dir, vpu_name), exist_ok=True)
-    start_date = datetime_array[0].strftime('%Y%m%d')
-    end_date = datetime_array[-1].strftime('%Y%m%d')
+    start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
+    end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
     inflow_file_path = os.path.join(inflows_dir,
                                     vpu_name,
                                     f'm3_{os.path.basename(inflows_dir)}_{start_date}_{end_date}.nc)')
@@ -241,7 +241,7 @@ def create_inflow_file(lsm_directory: str,
 
         # add global attributes
         inflow_nc.Conventions = 'CF-1.6'
-        inflow_nc.history = 'date_created: {0}'.format(datetime.utcnow())
+        inflow_nc.history = 'date_created: {0}'.format(datetime.datetime.utcnow())
         inflow_nc.featureType = 'timeSeries'
         inflow_nc.geospatial_lat_min = min_lat
         inflow_nc.geospatial_lat_max = max_lat
