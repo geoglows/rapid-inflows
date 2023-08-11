@@ -1,10 +1,10 @@
 import argparse
+import datetime
 import glob
 import logging
 import os
 import re
 import sys
-import datetime
 
 import netCDF4 as nc
 import numpy as np
@@ -175,7 +175,7 @@ def create_inflow_file(lsm_directory: str,
     end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
     inflow_file_path = os.path.join(inflows_dir,
                                     vpu_name,
-                                    f'm3_{os.path.basename(inflows_dir)}_{start_date}_{end_date}.nc)')
+                                    f'm3_{os.path.basename(inflows_dir)}_{start_date}_{end_date}.nc')
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
         inflow_nc.createDimension('time', datetime_array.shape[0])
@@ -183,7 +183,7 @@ def create_inflow_file(lsm_directory: str,
         inflow_nc.createDimension('nv', 2)
 
         # m3_riv
-        m3_riv_var = inflow_nc.createVariable('m3_riv', 'f4', ('time', 'rivid'), fill_value=0)
+        m3_riv_var = inflow_nc.createVariable('m3_riv', 'f4', ('time', 'rivid'), fill_value=0, zlib=True, complevel=7)
         m3_riv_var[:] = inflow_array
         m3_riv_var.long_name = 'accumulated inflow inflow volume in river reach boundaries'
         m3_riv_var.units = 'm3'
@@ -192,7 +192,7 @@ def create_inflow_file(lsm_directory: str,
         m3_riv_var.cell_methods = "time: sum"
 
         # rivid
-        rivid_var = inflow_nc.createVariable('rivid', 'i4', ('rivid',))
+        rivid_var = inflow_nc.createVariable('rivid', 'i4', ('rivid',), zlib=True, complevel=7)
         rivid_var[:] = sorted_rivid_array
         rivid_var.long_name = 'unique identifier for each river reach'
         rivid_var.units = '1'
@@ -201,7 +201,7 @@ def create_inflow_file(lsm_directory: str,
         # time
         reference_time = datetime_array[0]
         time_step = (datetime_array[1] - datetime_array[0]).astype('timedelta64[s]')
-        time_var = inflow_nc.createVariable('time', 'i4', ('time',))
+        time_var = inflow_nc.createVariable('time', 'i4', ('time',), zlib=True, complevel=7)
         time_var[:] = (datetime_array - reference_time).astype('timedelta64[s]').astype(int)
         time_var.long_name = 'time'
         time_var.standard_name = 'time'
@@ -211,13 +211,13 @@ def create_inflow_file(lsm_directory: str,
         time_var.bounds = 'time_bnds'
 
         # time_bnds
-        time_bnds = inflow_nc.createVariable('time_bnds', 'i4', ('time', 'nv',))
+        time_bnds = inflow_nc.createVariable('time_bnds', 'i4', ('time', 'nv',), zlib=True, complevel=7)
         time_bnds_array = np.stack([datetime_array, datetime_array + time_step], axis=1)
         time_bnds_array = (time_bnds_array - reference_time).astype('timedelta64[s]').astype(int)
         time_bnds[:] = time_bnds_array
 
         # longitude
-        lon_var = inflow_nc.createVariable('lon', 'f8', ('rivid',), fill_value=-9999.0)
+        lon_var = inflow_nc.createVariable('lon', 'f8', ('rivid',), fill_value=-9999.0, zlib=True, complevel=7)
         lon_var[:] = comid_df['lon'].values
         lon_var.long_name = 'longitude of a point related to each river reach'
         lon_var.standard_name = 'longitude'
@@ -225,7 +225,7 @@ def create_inflow_file(lsm_directory: str,
         lon_var.axis = 'X'
 
         # latitude
-        lat_var = inflow_nc.createVariable('lat', 'f8', ('rivid',), fill_value=-9999.0)
+        lat_var = inflow_nc.createVariable('lat', 'f8', ('rivid',), fill_value=-9999.0, zlib=True, complevel=7)
         lat_var[:] = comid_df['lat'].values
         lat_var.long_name = 'latitude of a point related to each river reach'
         lat_var.standard_name = 'latitude'
@@ -233,7 +233,7 @@ def create_inflow_file(lsm_directory: str,
         lat_var.axis = 'Y'
 
         # crs
-        crs_var = inflow_nc.createVariable('crs', 'i4')
+        crs_var = inflow_nc.createVariable('crs', 'i4', zlib=True, complevel=7)
         crs_var.grid_mapping_name = 'latitude_longitude'
         crs_var.epsg_code = 'EPSG:4326'  # WGS 84
         crs_var.semi_major_axis = 6378137.0
