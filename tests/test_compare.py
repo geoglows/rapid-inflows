@@ -62,7 +62,7 @@ def check_function(validation_ds, output_ds, test):
 # TEST 1: Normal inputs
 create_inflow_file('./tests/inputs/era5_721x1440_sample_data/',
                    'sample_dataset',
-                   './tests/test.nc',
+                   './tests/',
                    './tests/inputs/weight_era5_721x1440_last_10.csv',
                    './tests/inputs/comid_lat_lon_z_last_10.csv',
                    )
