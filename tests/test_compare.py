@@ -46,7 +46,8 @@ def check_function(validation_ds, output_ds, test):
         assert (output_ds['lat'][:] == validation_ds['lat'][:]).all(), "lat values do not match."
         
         # Check CRS is EPSG 4326
-        assert output_ds['crs'].epsg_code == validation_ds['crs'].epsg_code, f"CRS is not EPSG 4326. CRS is {output_ds['crs'].epsg_code}"
+        assert output_ds['crs'].epsg_code == validation_ds['crs'].epsg_code, f"CRS is not EPSG 4326. CRS is " \
+                                                                             f"{output_ds['crs'].epsg_code}"
         
         print("All tests passed.")
         
@@ -62,12 +63,12 @@ def check_function(validation_ds, output_ds, test):
 # TEST 1: Normal inputs
 create_inflow_file('./tests/inputs/era5_721x1440_sample_data/',
                    'sample_dataset',
-                   './tests/',
+                   './tests',
                    './tests/inputs/weight_era5_721x1440_last_10.csv',
                    './tests/inputs/comid_lat_lon_z_last_10.csv',
                    )
 
-out_ds = nc.Dataset('./tests/test.nc', 'r')
+out_ds = nc.Dataset(glob.glob('./tests/sample_dataset/*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
 
 check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
