@@ -14,12 +14,11 @@ import glob
 import netCDF4 as nc
 import sys
 import os
-
 # Add the project_root directory to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
 
-from inflow_fast import create_inflow_file
+from rapid_inflows.inflow_fast import create_inflow_file
 
 def check_function(validation_ds, output_ds, test):
     print(test)
@@ -58,9 +57,7 @@ def check_function(validation_ds, output_ds, test):
         validation_ds.close()
 
 # TEST 1: Normal inputs
-create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),
-                   './tests/inputs/weight_era5_721x1440_last_10.csv', './tests/inputs/comid_lat_lon_z_last_10.csv',
-                   './tests/test.nc')
+create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),'./tests/inputs/weight_era5_721x1440_last_10.csv','./tests/inputs/comid_lat_lon_z_last_10.csv','./tests/test.nc')
 
 out_ds = nc.Dataset('./tests/test.nc', 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')

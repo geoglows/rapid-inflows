@@ -44,7 +44,8 @@ def create_inflow_file(lsm_directory: str,
                        forecast: bool = True, ) -> None:
     """
     Generate inflow files for use with RAPID. The generated inflow file will sort the river ids in the order found in
-    the comid_lat_lon_z csv.
+    the comid_lat_lon_z csv. Either weight_table, comid_lat_lon_z, and inflow_file_path are defined explicitly, or 
+    input_tuples is defined. 
 
     Parameters
     ----------
@@ -117,7 +118,7 @@ def create_inflow_file(lsm_directory: str,
     lon_indices = weight_df['lon_index'].values - min_lon_idx
 
     spatial_slices = {lon_variable: slice(min_lon_idx, max_lon_idx + 1),
-                      lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
+                    lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
 
     ds = (
         lsm_dataset
