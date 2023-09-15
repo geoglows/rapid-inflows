@@ -40,7 +40,8 @@ def create_inflow_file(lsm_directory: str,
                        vpu_name: str,
                        inflows_dir: str,
                        weight_table: str,
-                       comid_lat_lon_z: str, ) -> None:
+                       comid_lat_lon_z: str, 
+                       forecast: bool = True, ) -> None:
     """
     Generate inflow files for use with RAPID. The generated inflow file will sort the river ids in the order found in
     the comid_lat_lon_z csv.
@@ -78,14 +79,14 @@ def create_inflow_file(lsm_directory: str,
     dataset_shape = [lsm_dataset[runoff_variable].shape[variable_dims.index(lat_variable)],
                      lsm_dataset[runoff_variable].shape[variable_dims.index(lon_variable)]]
 
-    matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
-    if len(matches) == 2:
-        if all(int(item) in dataset_shape for item in matches):
-            pass
-        else:
-            raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
-    else:
-        raise ValueError(f"Could not validate the grid shape in {weight_table} filename")
+    # matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
+    # if len(matches) == 2:
+    #     if all(int(item) in dataset_shape for item in matches):
+    #         pass
+    #     else:
+    #         raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
+    # else:
+    #     raise ValueError(f"Could not validate the grid shape in {weight_table} filename")
 
     # load in weight table and get some information
     logging.info('Reading weight table and comid_lat_lon_z csvs')
@@ -176,6 +177,25 @@ def create_inflow_file(lsm_directory: str,
     inflow_file_path = os.path.join(inflows_dir,
                                     vpu_name,
                                     f'm3_{os.path.basename(inflows_dir)}_{start_date}_{end_date}.nc')
+    
+    # Forecast arrays generally start as 3 hr time steps, and then switch to 6. Check if this is so, and if so, convert all to 3 hr timesteps
+    if forecast:
+        time_diff = np.diff(datetime_array)
+        desired_time_step = np.timedelta64(3,'h')
+
+        if not np.all(time_diff == desired_time_step):
+            interp_array = time_diff // desired_time_step - 1
+            datetime_array = np.arange(datetime_array[0], datetime_array[-1] + desired_time_step, desired_time_step)
+            new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
+            new_array_i = 0
+            for i in np.arange(inflow_array.shape[1]):
+                if interp_array[i] == 0:
+                    new_array[new_array_i, :] = inflow_array[i, :]
+                    new_array_i += 1
+                    continue
+
+
+
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
         inflow_nc.createDimension('time', datetime_array.shape[0])
@@ -280,4 +300,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    #main()
+    create_inflow_file('/Volumes/DrHalesT7/ec/test',
+                       '718',
+                       '/Volumes/DrHalesT7/ec/test',
+                       '/Users/ricky/rapid/forecast_data/vpus/718/weight_forecast.csv',
+                       '/Users/ricky/rapid/forecast_data/vpus/718/comid_lat_lon_z.csv')
