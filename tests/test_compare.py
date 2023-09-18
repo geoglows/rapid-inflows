@@ -61,7 +61,7 @@ create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),
                    'test_vpu',
                    './tests',
                    './tests/inputs/weight_era5_721x1440_last_10.csv',
-                   './tests/inputs/comid_lat_lon_z_last_10.csv','./tests/test.nc',
+                   './tests/inputs/comid_lat_lon_z_last_10.csv',
                    forecast=False)
 
 out_ds = nc.Dataset('./tests/test_vpu/test.nc', 'r')
