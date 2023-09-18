@@ -64,7 +64,7 @@ create_inflow_file('./tests/inputs/era5_721x1440_sample_data/',
                    './tests/inputs/comid_lat_lon_z_last_10.csv',
                    forecast=False)
 
-out_ds = nc.Dataset('./tests/test_vpu/test.nc', 'r')
+out_ds = nc.Dataset(glob.glob('./tests/test_vpu/*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
 
 check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
