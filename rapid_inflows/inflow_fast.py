@@ -41,22 +41,27 @@ def create_inflow_file(lsm_directory: str,
                        inflows_dir: str,
                        weight_table: str,
                        comid_lat_lon_z: str, 
-                       forecast: bool = True, ) -> None:
+                       forecast: bool = False, ) -> None:
     """
-    Generate inflow files for use with RAPID. The generated inflow file will sort the river ids in the order found in
-    the comid_lat_lon_z csv. Either weight_table, comid_lat_lon_z, and inflow_file_path are defined explicitly, or 
-    input_tuples is defined. 
+    Generate inflow files for use with RAPID.
 
     Parameters
     ----------
     lsm_directory: str
         Path to directory of LSM files which should end in .nc
+    vpu_name: str
+        Name of the vpu
+    inflows_dir: str
+        Path to directory where inflows will be saved
     weight_table: str, list
         Path and name of the weight table
     comid_lat_lon_z: str
         Path to the comid_lat_lon_z.csv corresponding to the weight table
-    inflows_dir: str
-        Path and name of the output netcdf
+    forecast: bool, optional
+        If true, we will process this as forecast data, meaning:
+        1) We assume the input runoff is culmative and
+        2) We will force the output time step to be 3 hours
+        Default is False
     """
 
     # Ensure that every input file exists
@@ -161,6 +166,12 @@ def create_inflow_file(lsm_directory: str,
         inflow_array = np.where(np.isnan(inflow_array[:, 0, :]), inflow_array[:, 1, :], inflow_array[:, 0, :]),
     else:
         raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
+    
+    if forecast:
+        # IMPORTANT: Data is assumed to be cumulative. We fix this here
+        diff_array = np.diff(inflow_array, axis=0)
+        inflow_array = np.vstack((inflow_array[0,:], diff_array))
+
     inflow_array = np.nan_to_num(inflow_array, nan=0)
     inflow_array[inflow_array < 0] = 0
     inflow_array = inflow_array * weight_df['area_sqm'].values * conversion_factor
@@ -169,6 +180,31 @@ def create_inflow_file(lsm_directory: str,
     inflow_array = inflow_array[sorted_rivid_array].to_numpy()
 
     ds.close()
+    
+    # Forecast may not be in 3 hr timesteps. Check if this is so, and if so, convert all to 3 hr timesteps
+    # Interpolation
+    if forecast:
+        time_diff = np.diff(datetime_array)
+        desired_time_step = np.timedelta64(3,'h')
+
+        if not np.all(time_diff == desired_time_step):
+            interp_array = time_diff // desired_time_step
+            datetime_array = np.arange(datetime_array[0], datetime_array[-1] + desired_time_step, desired_time_step)
+            new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
+
+            for i in range(inflow_array.shape[0] - 1):
+                step_values = inflow_array[i, :] / interp_array[i]
+                start_idx = sum(interp_array[:i])
+                end_idx = start_idx + interp_array[i]
+                new_array[start_idx:end_idx, :] = step_values
+
+            # Copy the last row from the original array
+            new_array[-1, :] = inflow_array[-1, :]
+
+            # Update inflow_array
+            inflow_array = None
+            inflow_array = np.nan_to_num(new_array, nan=0).astype(np.float64)
+            new_array = None
 
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
@@ -178,24 +214,6 @@ def create_inflow_file(lsm_directory: str,
     inflow_file_path = os.path.join(inflows_dir,
                                     vpu_name,
                                     f'm3_{os.path.basename(inflows_dir)}_{start_date}_{end_date}.nc')
-    
-    # Forecast arrays generally start as 3 hr time steps, and then switch to 6. Check if this is so, and if so, convert all to 3 hr timesteps
-    if forecast:
-        time_diff = np.diff(datetime_array)
-        desired_time_step = np.timedelta64(3,'h')
-
-        if not np.all(time_diff == desired_time_step):
-            interp_array = time_diff // desired_time_step - 1
-            datetime_array = np.arange(datetime_array[0], datetime_array[-1] + desired_time_step, desired_time_step)
-            new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
-            new_array_i = 0
-            for i in np.arange(inflow_array.shape[1]):
-                if interp_array[i] == 0:
-                    new_array[new_array_i, :] = inflow_array[i, :]
-                    new_array_i += 1
-                    continue
-
-
 
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
@@ -204,7 +222,9 @@ def create_inflow_file(lsm_directory: str,
         inflow_nc.createDimension('nv', 2)
 
         # m3_riv
-        m3_riv_var = inflow_nc.createVariable('m3_riv', 'f4', ('time', 'rivid'), fill_value=0, zlib=True, complevel=7)
+        # note to Riley: setting a fill value is not be a problem with netcdf4+. Howver, since we are saving with netcdf3, this creates masked arrays where 0 is 
+        # nan, causing RAPID to freak out. By not setting a fill vlaue, it doesn't create masked arrays with nan values
+        m3_riv_var = inflow_nc.createVariable('m3_riv', 'f4', ('time', 'rivid'), zlib=True, complevel=7)
         m3_riv_var[:] = inflow_array
         m3_riv_var.long_name = 'accumulated inflow inflow volume in river reach boundaries'
         m3_riv_var.units = 'm3'
@@ -238,7 +258,7 @@ def create_inflow_file(lsm_directory: str,
         time_bnds[:] = time_bnds_array
 
         # longitude
-        lon_var = inflow_nc.createVariable('lon', 'f8', ('rivid',), fill_value=-9999.0, zlib=True, complevel=7)
+        lon_var = inflow_nc.createVariable('lon', 'f8', ('rivid',), zlib=True, complevel=7)
         lon_var[:] = comid_df['lon'].values
         lon_var.long_name = 'longitude of a point related to each river reach'
         lon_var.standard_name = 'longitude'
@@ -246,7 +266,7 @@ def create_inflow_file(lsm_directory: str,
         lon_var.axis = 'X'
 
         # latitude
-        lat_var = inflow_nc.createVariable('lat', 'f8', ('rivid',), fill_value=-9999.0, zlib=True, complevel=7)
+        lat_var = inflow_nc.createVariable('lat', 'f8', ('rivid',), zlib=True, complevel=7)
         lat_var[:] = comid_df['lat'].values
         lat_var.long_name = 'latitude of a point related to each river reach'
         lat_var.standard_name = 'latitude'
@@ -306,4 +326,5 @@ if __name__ == '__main__':
                        '718',
                        '/Volumes/DrHalesT7/ec/test',
                        '/Users/ricky/rapid/forecast_data/vpus/718/weight_forecast.csv',
-                       '/Users/ricky/rapid/forecast_data/vpus/718/comid_lat_lon_z.csv')
+                       '/Users/ricky/rapid/forecast_data/vpus/718/comid_lat_lon_z.csv',
+                       True)
