@@ -57,9 +57,14 @@ def check_function(validation_ds, output_ds, test):
         validation_ds.close()
 
 # TEST 1: Normal inputs
-create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),'./tests/inputs/weight_era5_721x1440_last_10.csv','./tests/inputs/comid_lat_lon_z_last_10.csv','./tests/test.nc')
+create_inflow_file(glob.glob('./tests/inputs/era5_721x1440_sample_data/*.nc'),
+                   'test_vpu',
+                   './tests',
+                   './tests/inputs/weight_era5_721x1440_last_10.csv',
+                   './tests/inputs/comid_lat_lon_z_last_10.csv','./tests/test.nc',
+                   forecast=False)
 
-out_ds = nc.Dataset('./tests/test.nc', 'r')
+out_ds = nc.Dataset('./tests/test_vpu/test.nc', 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
 
 check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
