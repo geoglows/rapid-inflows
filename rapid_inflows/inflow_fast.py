@@ -41,7 +41,7 @@ def create_inflow_file(lsm_directory: str,
                        inflows_dir: str,
                        weight_table: str,
                        comid_lat_lon_z: str, 
-                       forecast: bool = False, ) -> None:
+                       cumulative: bool = False, ) -> None:
     """
     Generate inflow files for use with RAPID.
 
@@ -57,7 +57,7 @@ def create_inflow_file(lsm_directory: str,
         Path and name of the weight table
     comid_lat_lon_z: str
         Path to the comid_lat_lon_z.csv corresponding to the weight table
-    forecast: bool, optional
+    cumulative: bool, optional
         If true, we will process this as forecast data, meaning:
         1) We assume the input runoff is culmative and
         2) We will force the output time step to be 3 hours
@@ -167,27 +167,20 @@ def create_inflow_file(lsm_directory: str,
     else:
         raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
     
-    if forecast:
+    if cumulative:
         # IMPORTANT: Data is assumed to be cumulative. We fix this here
         diff_array = np.diff(inflow_array, axis=0)
         inflow_array = np.vstack((inflow_array[0,:], diff_array))
 
-    inflow_array = np.nan_to_num(inflow_array, nan=0)
-    inflow_array[inflow_array < 0] = 0
-    inflow_array = inflow_array * weight_df['area_sqm'].values * conversion_factor
-    inflow_array = pd.DataFrame(inflow_array, columns=stream_ids)
-    inflow_array = inflow_array.groupby(by=stream_ids, axis=1).sum()
-    inflow_array = inflow_array[sorted_rivid_array].to_numpy()
+        # Forecast may not be in 3 hr timesteps. Check if this is so, and if 'cumulative' is True, convert all to 3 hr timesteps
+    time_diff = np.diff(datetime_array)
+    expected_time_step = datetime_array[1] - datetime_array[0]
+    desired_time_step = np.timedelta64(3,'h') # We want 3 hour time steps
 
-    ds.close()
-    
-    # Forecast may not be in 3 hr timesteps. Check if this is so, and if so, convert all to 3 hr timesteps
-    # Interpolation
-    if forecast:
-        time_diff = np.diff(datetime_array)
-        desired_time_step = np.timedelta64(3,'h')
+    if not np.all(time_diff == expected_time_step) and not cumulative: 
+        logging.warnings("Input datasets do NOT have consistent time steps!")
 
-        if not np.all(time_diff == desired_time_step):
+    if cumulative:
             interp_array = time_diff // desired_time_step
             datetime_array = np.arange(datetime_array[0], datetime_array[-1] + desired_time_step, desired_time_step)
             new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
@@ -203,8 +196,19 @@ def create_inflow_file(lsm_directory: str,
 
             # Update inflow_array
             inflow_array = None
-            inflow_array = np.nan_to_num(new_array, nan=0).astype(np.float64)
+            inflow_array = new_array.astype(np.float64)
             new_array = None
+
+    inflow_array = np.nan_to_num(inflow_array, nan=0)
+    inflow_array[inflow_array < 0] = 0
+    inflow_array = inflow_array * weight_df['area_sqm'].values * conversion_factor
+    inflow_array = pd.DataFrame(inflow_array, columns=stream_ids)
+    inflow_array = inflow_array.groupby(by=stream_ids, axis=1).sum()
+    inflow_array = inflow_array[sorted_rivid_array].to_numpy()
+
+    ds.close()
+    
+
 
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
@@ -317,7 +321,8 @@ def main():
                        input_dir_name,
                        inflows_dir,
                        os.path.join(input_dir, 'weight_era5_721x1440.csv'),
-                       os.path.join(input_dir, 'comid_lat_lon_z.csv'), )
+                       os.path.join(input_dir, 'comid_lat_lon_z.csv'), 
+                       False,)
 
 
 if __name__ == '__main__':
