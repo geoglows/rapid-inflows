@@ -62,7 +62,7 @@ create_inflow_file('./tests/inputs/era5_721x1440_sample_data/',
                    './tests',
                    './tests/inputs/weight_era5_721x1440_last_10.csv',
                    './tests/inputs/comid_lat_lon_z_last_10.csv',
-                   forecast=False)
+                   False, )
 
 out_ds = nc.Dataset(glob.glob('./tests/test_vpu/*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
