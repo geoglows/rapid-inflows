@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
+DESIRED_TIME_STEP = np.timedelta64(3,'h') # We want 3 hour time steps
 
 def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: float = 0.8):
     """
@@ -85,14 +86,14 @@ def create_inflow_file(lsm_directory: str,
     dataset_shape = [lsm_dataset[runoff_variable].shape[variable_dims.index(lat_variable)],
                      lsm_dataset[runoff_variable].shape[variable_dims.index(lon_variable)]]
 
-    # matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
-    # if len(matches) == 2:
-    #     if all(int(item) in dataset_shape for item in matches):
-    #         pass
-    #     else:
-    #         raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
-    # else:
-    #     raise ValueError(f"Could not validate the grid shape in {weight_table} filename")
+    matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
+    if len(matches) == 2:
+        if all(int(item) in dataset_shape for item in matches):
+            pass
+        else:
+            raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
+    else:
+        raise ValueError(f"Could not validate the grid shape in {weight_table} filename")
 
     # load in weight table and get some information
     logging.info('Reading weight table and comid_lat_lon_z csvs')
@@ -167,22 +168,21 @@ def create_inflow_file(lsm_directory: str,
     else:
         raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
     
-    if cumulative:
-        # IMPORTANT: Data is assumed to be cumulative. We fix this here
-        diff_array = np.diff(inflow_array, axis=0)
-        inflow_array = np.vstack((inflow_array[0,:], diff_array))
-
-        # Forecast may not be in 3 hr timesteps. Check if this is so, and if 'cumulative' is True, convert all to 3 hr timesteps
+    # Forecast may not be in 3 hr timesteps. Check if this is so, and if 'cumulative' is True, convert all to 3 hr timesteps
     time_diff = np.diff(datetime_array)
     expected_time_step = datetime_array[1] - datetime_array[0]
-    desired_time_step = np.timedelta64(3,'h') # We want 3 hour time steps
 
     if not np.all(time_diff == expected_time_step) and not cumulative: 
-        logging.warnings("Input datasets do NOT have consistent time steps!")
+        logging.warning("Input datasets do NOT have consistent time steps!")
 
     if cumulative:
-            interp_array = time_diff // desired_time_step
-            datetime_array = np.arange(datetime_array[0], datetime_array[-1] + desired_time_step, desired_time_step)
+            # IMPORTANT: Data is assumed to be cumulative. We fix this here
+            diff_array = np.diff(inflow_array, axis=0)
+            inflow_array = np.vstack((inflow_array[0,:], diff_array))
+
+            # Interpolate data to fit 3 hr timesteps
+            interp_array = time_diff // DESIRED_TIME_STEP
+            datetime_array = np.arange(datetime_array[0], datetime_array[-1] + DESIRED_TIME_STEP, DESIRED_TIME_STEP)
             new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
 
             for i in range(inflow_array.shape[0] - 1):
@@ -207,8 +207,6 @@ def create_inflow_file(lsm_directory: str,
     inflow_array = inflow_array[sorted_rivid_array].to_numpy()
 
     ds.close()
-    
-
 
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
@@ -326,10 +324,4 @@ def main():
 
 
 if __name__ == '__main__':
-    #main()
-    create_inflow_file('/Volumes/DrHalesT7/ec/test',
-                       '718',
-                       '/Volumes/DrHalesT7/ec/test',
-                       '/Users/ricky/rapid/forecast_data/vpus/718/weight_forecast.csv',
-                       '/Users/ricky/rapid/forecast_data/vpus/718/comid_lat_lon_z.csv',
-                       True)
+    main()
