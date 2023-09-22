@@ -1,10 +1,8 @@
-import argparse
 import datetime
 import glob
 import logging
 import os
 import re
-import sys
 
 import netCDF4 as nc
 import numpy as np
@@ -225,7 +223,7 @@ def create_inflow_file(lsm_data: str,
     end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
     inflow_file_path = os.path.join(inflows_dir,
                                     vpu_name,
-                                    f'm3_{os.path.basename(inflows_dir)}_{start_date}_{end_date}.nc')
+                                    f'm3_{vpu_name}_{start_date}_{end_date}.nc')
 
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
