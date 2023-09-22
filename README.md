@@ -1,7 +1,9 @@
-# rapid_inflows
-Louis R. Rosas, Dr Riley Hales
+# basininflow
+Dr Riley Hales, Louis R. Rosas
 
-Rapid Inflows is a python interface for RAPID that assists to prepare inflow data. Gridded runoff data is taken in, along with lists of basins and their area. The runoff for each basin is calculated for every time step, and the resulting flows are written to an output inflow NetCDF file, the main dataset used by RAPID. Inspired by ERDC's [RAPIDpy](https://github.com/erdc/RAPIDpy). More information about RAPID can be found [here](http://rapid-hub.org).
+`basininflow` is Python package for making netcdf timeseries files of runoff volume accumulation values for each 
+subbasin in a given weight table. The output is formatted to work with the RAPID software.
+
 
 ## Inputs
 The `create_inflow_file` function takes in six parameters: 
