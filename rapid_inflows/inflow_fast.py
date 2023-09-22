@@ -36,6 +36,8 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
         print(f"WARNING: arrays will use ~{round(num_bytes / available_mem, 1)}% of \
         {psutil._common.bytes2human(available_mem)} available memory...")
 
+def _is_cumulative(array: np.ndarray):
+    return np.all(np.diff(array) >= 0)
 
 def create_inflow_file(lsm_directory: str,
                        vpu_name: str,
@@ -175,29 +177,35 @@ def create_inflow_file(lsm_directory: str,
     if not np.all(time_diff == expected_time_step) and not cumulative: 
         logging.warning("Input datasets do NOT have consistent time steps!")
 
+    # Forecast data is cumulative. Check if this is so and warn
+    is_cumulative = _is_cumulative(inflow_array[:,-1])
+    if is_cumulative and not cumulative:
+        logging.warning("Input datasets are cumulative and you are not fixing them")
+
     if cumulative:
-            # IMPORTANT: Data is assumed to be cumulative. We fix this here
+        if is_cumulative:
+            # IMPORTANT: If data is cumulative, we fix this here
             diff_array = np.diff(inflow_array, axis=0)
             inflow_array = np.vstack((inflow_array[0,:], diff_array))
 
-            # Interpolate data to fit 3 hr timesteps
-            interp_array = time_diff // DESIRED_TIME_STEP
-            datetime_array = np.arange(datetime_array[0], datetime_array[-1] + DESIRED_TIME_STEP, DESIRED_TIME_STEP)
-            new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
+        # Interpolate data to fit 3 hr timesteps
+        interp_array = time_diff // DESIRED_TIME_STEP
+        datetime_array = np.arange(datetime_array[0], datetime_array[-1] + DESIRED_TIME_STEP, DESIRED_TIME_STEP)
+        new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
 
-            for i in range(inflow_array.shape[0] - 1):
-                step_values = inflow_array[i, :] / interp_array[i]
-                start_idx = sum(interp_array[:i])
-                end_idx = start_idx + interp_array[i]
-                new_array[start_idx:end_idx, :] = step_values
+        for i in range(inflow_array.shape[0] - 1):
+            step_values = inflow_array[i, :] / interp_array[i]
+            start_idx = sum(interp_array[:i])
+            end_idx = start_idx + interp_array[i]
+            new_array[start_idx:end_idx, :] = step_values
 
-            # Copy the last row from the original array
-            new_array[-1, :] = inflow_array[-1, :]
+        # Copy the last row from the original array
+        new_array[-1, :] = inflow_array[-1, :]
 
-            # Update inflow_array
-            inflow_array = None
-            inflow_array = new_array.astype(np.float64)
-            new_array = None
+        # Update inflow_array
+        inflow_array = None
+        inflow_array = new_array.astype(np.float64)
+        new_array = None
 
     inflow_array = np.nan_to_num(inflow_array, nan=0)
     inflow_array[inflow_array < 0] = 0
