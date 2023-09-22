@@ -4,17 +4,22 @@ Louis R. Rosas, Dr Riley Hales
 Rapid Inflows is a python interface for RAPID that assists to prepare inflow data. Gridded runoff data is taken in, along with lists of basins and their area. The runoff for each basin is calculated for every time step, and the resulting flows are written to an output inflow NetCDF file, the main dataset used by RAPID. Inspired by ERDC's [RAPIDpy](https://github.com/erdc/RAPIDpy). More information about RAPID can be found [here](http://rapid-hub.org).
 
 ## Inputs
-The `create_inflow_file` function takes in four parameters: 
+The `create_inflow_file` function takes in six parameters: 
     1) a list of gridded runoff NetCDF datasets
-    2) a weight table
-    3) a comid_lat_lon_z file
-    4) an output filename
-Items 2-4 may be wrapped together in a list of iterable objects (tuples, lists, arrays, etc.) and passed instead to the `'input_tuples'` function. This allows the NetCDF datasets to be opened once, and multiple weight tables which match the datasets can be used to make multiple outputs.
+    2) the name of the output subfolder
+    3) path where the subfolders and outputs are located
+    4) a weight table
+    5) a comid_lat_lon_z file
+    6) is the input forecast data?
+
+The `create_inflow_file` function is designed to be executed on a linux supercomputer.
 
 ### Gridded Runoff Datasets
 The input NetCDF datasets should follow the following conventions. It is expected that the datasets have 3 or 4 dimensions, in the following orders: `time, latitude, longitude` or `time, expver, latitude, longitude` (The 4th dimension is often present in the most recent releases of the ECMWF datasets, which has an 'experimental version' dimension. Internally, this dimension is flattened and the data summed. The name of this dimension does not matter). The runoff, longitude, and latitude variables may be any of the following, respectively: `'ro', 'RO', 'runoff', 'RUNOFF'`, `'lon', 'longitude', 'LONGITUDE', 'LON'`, `'lat', 'latitude', 'LATITUDE', 'LAT'`. Latitude and longitude is expected in even steps, from 90 to -90 degrees and 0 to 360 degrees repectively. Time is expected as `'time'`. The difference in time between each dataset should be equal (typically a time step of a day), and should be an interger.
 
 The user may input as many datasets as desired. There is a built in memory check which warns the user if the amount of memory required exceeds 80% of the available RAM and will terminate the process if the amount of memory required exceeds all the available memory. 
+
+If the input dataset is a forecast dataset, they typically contain timesteps of 3 hours which then switch to 6 hours after a certain amount of days. In addition, the forecast data is assumed to be cumulative. By setting the 'forecast' variable to True, the forecast data will be switched from cumulative to instaneous, and the time steps will be forced to 3 hours.
 
 Example NetCDFs can be found in `/tests/inputs/era5_721x1440_sample_data`.
 
@@ -36,4 +41,4 @@ A csv which has the unique ids (COMIDs, reach ids, LINKNOs, etc.) of the basins/
 An example comid csv can be found in `/tests/inputs`.
 
 ## Outputs
-The `create_inflow_file` outputs a new NetCDF 3 (classic) dataset. It is desgined to be accepted by rapid and pass all of its internal tests. Example output datasets can be found in `/tests/validation`.
+The `create_inflow_file` outputs a new NetCDF 3 (classic) dataset in a folder called `vpu`, under then `inflows_dir` directory. It is desgined to be accepted by rapid and pass all of its internal tests. Example output datasets can be found in `/tests/validation`.
