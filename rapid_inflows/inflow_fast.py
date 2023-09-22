@@ -12,11 +12,6 @@ import pandas as pd
 import psutil
 import xarray as xr
 
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
-
-DESIRED_TIME_STEP = np.timedelta64(3,'h') # We want 3 hour time steps
 
 def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: float = 0.8):
     """
@@ -37,43 +32,50 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
         {psutil._common.bytes2human(available_mem)} available memory...")
 
 
-def create_inflow_file(lsm_directory: str,
-                       vpu_name: str,
+def create_inflow_file(lsm_data: str,
+                       input_dir: str,
                        inflows_dir: str,
-                       weight_table: str,
-                       comid_lat_lon_z: str, 
+                       vpu_name: str = None,
+                       weight_table: str = None,
+                       comid_lat_lon_z: str = None,
+                       timestep: datetime.timedelta = None,
                        cumulative: bool = False, ) -> None:
     """
     Generate inflow files for use with RAPID.
 
     Parameters
     ----------
-    lsm_directory: str
-        Path to directory of LSM files which should end in .nc
-    vpu_name: str
-        Name of the vpu
+    lsm_data: str
+        A list of LSM files or a glob pattern string to LSM files
+    input_dir: str
+        Path to directory of vpu files which contains weight tables
     inflows_dir: str
         Path to directory where inflows will be saved
+    vpu_name: str
+        Name of the vpu. If none, assumed to be the name of the input directory
     weight_table: str, list
         Path and name of the weight table
     comid_lat_lon_z: str
         Path to the comid_lat_lon_z.csv corresponding to the weight table
+    timestep: int, optional
+        Time step of the inflow data in hours. Default is 3 hours
     cumulative: bool, optional
-        If true, we will process this as forecast data, meaning:
-        1) We assume the input runoff is culmative and
-        2) We will force the output time step to be 3 hours
-        Default is False
+        Convert the inflow data to incremental values. Default is False
     """
-
     # Ensure that every input file exists
-    if not os.path.exists(weight_table):
+    if weight_table is not None and not os.path.exists(weight_table):
         raise FileNotFoundError(f'{weight_table} does not exist')
-    if not os.path.exists(comid_lat_lon_z):
-        raise FileNotFoundError(f'{comid_lat_lon_z} does not exist')
+    if comid_lat_lon_z is None:
+        comid_lat_lon_z = os.path.join(input_dir, 'comid_lat_lon_z.csv')
+        if not os.path.exists(comid_lat_lon_z):
+            raise FileNotFoundError(f'{comid_lat_lon_z} does not exist')
+
+    if vpu_name is None:
+        vpu_name = os.path.basename(input_dir)
 
     # open all the ncs and select only the area within the weight table
     logging.info('Opening LSM files multi-file dataset')
-    lsm_dataset = xr.open_mfdataset(sorted(glob.glob(os.path.join(lsm_directory, '*.nc'))))
+    lsm_dataset = xr.open_mfdataset(lsm_data)
 
     # Select the variable names
     runoff_variable = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in lsm_dataset.variables][0]
@@ -86,14 +88,18 @@ def create_inflow_file(lsm_directory: str,
     dataset_shape = [lsm_dataset[runoff_variable].shape[variable_dims.index(lat_variable)],
                      lsm_dataset[runoff_variable].shape[variable_dims.index(lon_variable)]]
 
+    if weight_table is None:
+        # find a file in the input_dir which contains f"weight*{dataset_shape[0]}x{dataset_shape[1]}.csv"
+        weight_table = glob.glob(os.path.join(input_dir, f'weight*{dataset_shape[0]}x{dataset_shape[1]}.csv'))
+        if not len(weight_table):
+            raise FileNotFoundError(f'Could not find a weight table in {input_dir} with shape {dataset_shape}')
+        weight_table = weight_table[0]
+    # check that the grid dimensions are found in the weight table filename
     matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
-    if len(matches) == 2:
-        if all(int(item) in dataset_shape for item in matches):
-            pass
-        else:
-            raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
-    else:
-        raise ValueError(f"Could not validate the grid shape in {weight_table} filename")
+    if len(matches) != 2:
+        raise ValueError(f"Could not validate the grid shape and weight table. Grid shape not found in filename")
+    if not (len(matches) == 2 and all(int(item) in dataset_shape for item in matches)):
+        raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
 
     # load in weight table and get some information
     logging.info('Reading weight table and comid_lat_lon_z csvs')
@@ -124,7 +130,7 @@ def create_inflow_file(lsm_directory: str,
     lon_indices = weight_df['lon_index'].values - min_lon_idx
 
     spatial_slices = {lon_variable: slice(min_lon_idx, max_lon_idx + 1),
-                    lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
+                      lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
 
     ds = (
         lsm_dataset
@@ -159,7 +165,6 @@ def create_inflow_file(lsm_directory: str,
     datetime_array = ds['time'].to_numpy()
 
     logging.info('Creating inflow array')
-    # todo more checks on names and order of dimensions
     if ds.ndim == 3:
         inflow_array = ds.values[:, lat_indices, lon_indices]
     elif ds.ndim == 4:
@@ -167,37 +172,42 @@ def create_inflow_file(lsm_directory: str,
         inflow_array = np.where(np.isnan(inflow_array[:, 0, :]), inflow_array[:, 1, :], inflow_array[:, 0, :]),
     else:
         raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
-    
-    # Forecast may not be in 3 hr timesteps. Check if this is so, and if 'cumulative' is True, convert all to 3 hr timesteps
-    time_diff = np.diff(datetime_array)
-    expected_time_step = datetime_array[1] - datetime_array[0]
-
-    if not np.all(time_diff == expected_time_step) and not cumulative: 
-        logging.warning("Input datasets do NOT have consistent time steps!")
 
     if cumulative:
-            # IMPORTANT: Data is assumed to be cumulative. We fix this here
-            diff_array = np.diff(inflow_array, axis=0)
-            inflow_array = np.vstack((inflow_array[0,:], diff_array))
+        inflow_array = np.vstack((inflow_array[0, :], np.diff(inflow_array, axis=0)))
 
-            # Interpolate data to fit 3 hr timesteps
-            interp_array = time_diff // DESIRED_TIME_STEP
-            datetime_array = np.arange(datetime_array[0], datetime_array[-1] + DESIRED_TIME_STEP, DESIRED_TIME_STEP)
-            new_array = np.empty((datetime_array.shape[0], inflow_array.shape[1]))
+    # Check that all timesteps are the same
+    time_diff = np.diff(datetime_array)
+    if not np.all(time_diff == datetime_array[1] - datetime_array[0]):
+        if timestep is None:
+            timestep = datetime_array[1] - datetime_array[0]
 
-            for i in range(inflow_array.shape[0] - 1):
-                step_values = inflow_array[i, :] / interp_array[i]
-                start_idx = sum(interp_array[:i])
-                end_idx = start_idx + interp_array[i]
-                new_array[start_idx:end_idx, :] = step_values
+        logging.warning("Input datasets do NOT have consistent time steps!")
+        logging.warning(f"Attempting to linearly interpolate non-uniform timesteps to {timestep}")
 
-            # Copy the last row from the original array
-            new_array[-1, :] = inflow_array[-1, :]
+        # make sure that the rows with a non-uniform timestep are all the same timestep
+        rows_with_matching_timesteps = np.where(time_diff == timestep)[0]
+        rows_with_nonmatching_timesteps = np.where(time_diff != timestep)[0]
+        non_matching_timesteps = time_diff[rows_with_nonmatching_timesteps]
+        if not all([i == non_matching_timesteps[0] for i in non_matching_timesteps]):
+            raise ValueError("Non-matching timesteps are not all the same")
 
-            # Update inflow_array
-            inflow_array = None
-            inflow_array = new_array.astype(np.float64)
-            new_array = None
+        # make sure that the timestep is a multiple of the non-matching timestep
+        if non_matching_timesteps[0] % timestep != 0:
+            raise ValueError("The non-uniform timesteps are not a multiple of the non-matching timestep")
+        num_substeps_to_linearly_interpolate = non_matching_timesteps[0] // timestep
+
+        # linearly interpolate the non-matching timesteps
+        new_inflows_array = inflow_array[rows_with_nonmatching_timesteps, :] / num_substeps_to_linearly_interpolate
+        new_inflows_array = np.repeat(new_inflows_array, num_substeps_to_linearly_interpolate, axis=0)
+        inflow_array = np.vstack((inflow_array[rows_with_matching_timesteps, :], new_inflows_array))
+
+        # set the new list of timesteps
+        datetime_array = np.arange(
+            datetime_array[0],
+            datetime_array[-1] + timestep * (num_substeps_to_linearly_interpolate - 1 - 1),
+            timestep
+        )
 
     inflow_array = np.nan_to_num(inflow_array, nan=0)
     inflow_array[inflow_array < 0] = 0
@@ -224,9 +234,8 @@ def create_inflow_file(lsm_directory: str,
         inflow_nc.createDimension('nv', 2)
 
         # m3_riv
-        # note to Riley: setting a fill value is not be a problem with netcdf4+. Howver, since we are saving with netcdf3, this creates masked arrays where 0 is 
-        # nan, causing RAPID to freak out. By not setting a fill vlaue, it doesn't create masked arrays with nan values
-        m3_riv_var = inflow_nc.createVariable('m3_riv', 'f4', ('time', 'rivid'), zlib=True, complevel=7)
+        # note - nan's and fill values are not supported on netcdf3 files
+        m3_riv_var = inflow_nc.createVariable('m3_riv', 'f4', ('time', 'rivid'))
         m3_riv_var[:] = inflow_array
         m3_riv_var.long_name = 'accumulated inflow inflow volume in river reach boundaries'
         m3_riv_var.units = 'm3'
@@ -235,7 +244,7 @@ def create_inflow_file(lsm_directory: str,
         m3_riv_var.cell_methods = "time: sum"
 
         # rivid
-        rivid_var = inflow_nc.createVariable('rivid', 'i4', ('rivid',), zlib=True, complevel=7)
+        rivid_var = inflow_nc.createVariable('rivid', 'i4', ('rivid',))
         rivid_var[:] = sorted_rivid_array
         rivid_var.long_name = 'unique identifier for each river reach'
         rivid_var.units = '1'
@@ -244,7 +253,7 @@ def create_inflow_file(lsm_directory: str,
         # time
         reference_time = datetime_array[0]
         time_step = (datetime_array[1] - datetime_array[0]).astype('timedelta64[s]')
-        time_var = inflow_nc.createVariable('time', 'i4', ('time',), zlib=True, complevel=7)
+        time_var = inflow_nc.createVariable('time', 'i4', ('time',))
         time_var[:] = (datetime_array - reference_time).astype('timedelta64[s]').astype(int)
         time_var.long_name = 'time'
         time_var.standard_name = 'time'
@@ -254,13 +263,13 @@ def create_inflow_file(lsm_directory: str,
         time_var.bounds = 'time_bnds'
 
         # time_bnds
-        time_bnds = inflow_nc.createVariable('time_bnds', 'i4', ('time', 'nv',), zlib=True, complevel=7)
+        time_bnds = inflow_nc.createVariable('time_bnds', 'i4', ('time', 'nv',))
         time_bnds_array = np.stack([datetime_array, datetime_array + time_step], axis=1)
         time_bnds_array = (time_bnds_array - reference_time).astype('timedelta64[s]').astype(int)
         time_bnds[:] = time_bnds_array
 
         # longitude
-        lon_var = inflow_nc.createVariable('lon', 'f8', ('rivid',), zlib=True, complevel=7)
+        lon_var = inflow_nc.createVariable('lon', 'f8', ('rivid',))
         lon_var[:] = comid_df['lon'].values
         lon_var.long_name = 'longitude of a point related to each river reach'
         lon_var.standard_name = 'longitude'
@@ -268,7 +277,7 @@ def create_inflow_file(lsm_directory: str,
         lon_var.axis = 'X'
 
         # latitude
-        lat_var = inflow_nc.createVariable('lat', 'f8', ('rivid',), zlib=True, complevel=7)
+        lat_var = inflow_nc.createVariable('lat', 'f8', ('rivid',))
         lat_var[:] = comid_df['lat'].values
         lat_var.long_name = 'latitude of a point related to each river reach'
         lat_var.standard_name = 'latitude'
@@ -276,7 +285,7 @@ def create_inflow_file(lsm_directory: str,
         lat_var.axis = 'Y'
 
         # crs
-        crs_var = inflow_nc.createVariable('crs', 'i4', zlib=True, complevel=7)
+        crs_var = inflow_nc.createVariable('crs', 'i4')
         crs_var.grid_mapping_name = 'latitude_longitude'
         crs_var.epsg_code = 'EPSG:4326'  # WGS 84
         crs_var.semi_major_axis = 6378137.0
@@ -296,31 +305,49 @@ def create_inflow_file(lsm_directory: str,
 
 
 def main():
+    logging.basicConfig(level=logging.INFO,
+                        stream=sys.stdout,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+
     parser = argparse.ArgumentParser(description='Create inflow file for LSM files and input directory.')
 
     # Define the command-line argument
-    parser.add_argument('--lsmdir', type=str, help='Directory of LSM files')
-    parser.add_argument('--inputdir', type=str, help='Inputs directory')
-    parser.add_argument('--inflowdir', type=str, help='Inflows directory')
-
+    parser.add_argument('--lsmdir', type=str,
+                        help='Directory of LSM files')
+    parser.add_argument('--inputdir', type=str,
+                        help='Input directory path for a specific VPU which contains weight tables')
+    parser.add_argument('--inflowdir', type=str,
+                        help='Inflows directory which contains VPU subdirectories')
+    parser.add_argument('--timestep', type=int, default=3,
+                        help='Desired time step in hours. Default is 3 hours')
+    parser.add_argument('--cumulative', type=bool, action=argparse.BooleanOptionalAction, default=False,
+                        help='A boolean flag to mark if the runoff is cumulative. Inflows should be incremental')
     args = parser.parse_args()
 
     # Access the parsed argument
-    lsm_dir = args.lsmdir
+    lsm_data = args.lsmdir
     input_dir = args.inputdir
     inflows_dir = args.inflowdir
+    timestep = datetime.timedelta(hours=args.timestep)
+    cumulative = args.cumulative
 
-    if not all([lsm_dir, input_dir, inflows_dir]):
-        raise ValueError('Missing required arguments')
+    if not all([lsm_data, input_dir, inflows_dir]):
+        raise ValueError('Missing required arguments --lsmdir, --inputdir, --inflowdir')
+
+    # check what kind of lsm data was given
+    if os.path.isdir(lsm_data):
+        lsm_data = os.path.join(lsm_data, '*.nc*')
+    elif os.path.isfile(lsm_data):
+        ...
+    elif not os.path.exists(lsm_data) and '*' not in lsm_data:
+        raise FileNotFoundError(f'{lsm_data} does not exist and is not a glob pattern')
 
     # Create the inflow file for each LSM file
-    input_dir_name = os.path.basename(input_dir)
-    create_inflow_file(lsm_dir,
-                       input_dir_name,
+    create_inflow_file(lsm_data,
+                       input_dir,
                        inflows_dir,
-                       os.path.join(input_dir, 'weight_era5_721x1440.csv'),
-                       os.path.join(input_dir, 'comid_lat_lon_z.csv'), 
-                       False,)
+                       cumulative=cumulative,
+                       timestep=timestep)
 
 
 if __name__ == '__main__':
