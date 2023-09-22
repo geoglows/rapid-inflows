@@ -20,7 +20,7 @@ import netCDF4 as nc
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
 
-from rapid_inflows.inflow_fast import create_inflow_file
+from basininflow.inflow import create_inflow_file
 
 
 def check_function(validation_ds, output_ds, test):
