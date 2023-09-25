@@ -44,16 +44,6 @@ def gen(parser, args):
         parser.print_usage()
         return
 
-    # check what kind of lsm data was given
-    if os.path.isdir(lsm_data):
-        lsm_data = os.path.join(lsm_data, '*.nc*')
-    elif os.path.isfile(lsm_data):
-        ...  # this is correct, a single file is allowed
-    elif '*' in lsm_data:
-        ...  # this is correct, xarray will interpret the glob sting independently
-    elif not os.path.exists(lsm_data) and '*' not in lsm_data:
-        raise FileNotFoundError(f'{lsm_data} does not exist and is not a glob pattern')
-
     # Create the inflow file for each LSM file
     create_inflow_file(lsm_data, input_dir, inflow_dir, timestep=timestep, cumulative=cumulative)
     return

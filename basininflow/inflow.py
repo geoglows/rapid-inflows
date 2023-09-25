@@ -73,6 +73,14 @@ def create_inflow_file(lsm_data: str,
 
     # open all the ncs and select only the area within the weight table
     logging.info('Opening LSM files multi-file dataset')
+    if os.path.isdir(lsm_data):
+        lsm_data = os.path.join(lsm_data, '*.nc*')
+    elif os.path.isfile(lsm_data):
+        ...  # this is correct, a single file is allowed
+    elif '*' in lsm_data:
+        ...  # this is correct, xarray will interpret the glob sting independently
+    elif not os.path.exists(lsm_data) and '*' not in lsm_data:
+        raise FileNotFoundError(f'{lsm_data} does not exist and is not a glob pattern')
     lsm_dataset = xr.open_mfdataset(lsm_data)
 
     # Select the variable names
@@ -92,6 +100,7 @@ def create_inflow_file(lsm_data: str,
         if not len(weight_table):
             raise FileNotFoundError(f'Could not find a weight table in {input_dir} with shape {dataset_shape}')
         weight_table = weight_table[0]
+        logging.info(f'Using weight table: {weight_table}')
     # check that the grid dimensions are found in the weight table filename
     matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
     if len(matches) != 2:
@@ -101,6 +110,8 @@ def create_inflow_file(lsm_data: str,
 
     # load in weight table and get some information
     logging.info('Reading weight table and comid_lat_lon_z csvs')
+    logging.info(f'Using weight table: {weight_table}')
+    logging.info(f'Using comid_lat_lon_z: {comid_lat_lon_z}')
     weight_df = pd.read_csv(weight_table)
     comid_df = pd.read_csv(comid_lat_lon_z)
 

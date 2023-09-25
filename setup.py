@@ -1,16 +1,37 @@
 from setuptools import setup, find_packages
+import re
 
-with open('requirements.txt', 'r') as f:
-    install_requires = f.readlines()
+NAME = 'basininflow'
+DESCRIPTION = 'Calculates time series of runoff for basins from gridded runoff LSM data'
+URL = 'https://github.com/geoglows/basininflow'
+AUTHOR = 'Riley Hales PhD'
+REQUIRES_PYTHON = '>=3.11.0'
+LICENSE = 'CC BY 4.0'
+
+with open(f'./{NAME}/__init__.py') as f:
+    version_pattern = r'__version__ = [\'"](\d+\.\d+\.\d+)[\'"]'
+    VERSION = re.search(version_pattern, f.read()).group(1)
+
+with open('./requirements.txt') as f:
+    INSTALL_REQUIRES = f.read().splitlines()
 
 setup(
-    name='basininflow',
-    version='0.1.0',
-    packages=find_packages(),
-    install_requires=install_requires,
-    entry_points={
-        'console_scripts': [
-            'inflows = basininflow.cli:main',
-        ],
-    },
+    name=NAME,
+    version=VERSION,
+    description=DESCRIPTION,
+    long_description_content_type='text/markdown',
+    author=AUTHOR,
+    python_requires=REQUIRES_PYTHON,
+    url=URL,
+    packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
+    install_requires=INSTALL_REQUIRES,
+    include_package_data=False,
+    classifiers=[
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.11',
+        'Natural Language :: English',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Hydrology',
+    ],
 )
