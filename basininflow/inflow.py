@@ -32,7 +32,7 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
 
 def create_inflow_file(lsm_data: str,
                        input_dir: str,
-                       inflows_dir: str,
+                       inflow_dir: str,
                        vpu_name: str = None,
                        weight_table: str = None,
                        comid_lat_lon_z: str = None,
@@ -47,7 +47,7 @@ def create_inflow_file(lsm_data: str,
         A list of LSM files or a glob pattern string to LSM files
     input_dir: str
         Path to directory of vpu files which contains weight tables
-    inflows_dir: str
+    inflow_dir: str
         Path to directory where inflows will be saved
     vpu_name: str
         Name of the vpu. If none, assumed to be the name of the input directory
@@ -218,11 +218,10 @@ def create_inflow_file(lsm_data: str,
 
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
-    os.makedirs(os.path.join(inflows_dir, vpu_name), exist_ok=True)
+    os.makedirs(inflow_dir, exist_ok=True)
     start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
     end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
-    inflow_file_path = os.path.join(inflows_dir,
-                                    vpu_name,
+    inflow_file_path = os.path.join(inflow_dir,
                                     f'm3_{vpu_name}_{start_date}_{end_date}.nc')
 
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:

@@ -5,5 +5,4 @@ pandas
 psutil
 pyarrow
 pytest
-python
 xarray
