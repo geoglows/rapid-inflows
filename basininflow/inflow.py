@@ -109,7 +109,6 @@ def create_inflow_file(lsm_data: str,
         raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
 
     # load in weight table and get some information
-    logging.info('Reading weight table and comid_lat_lon_z csvs')
     logging.info(f'Using weight table: {weight_table}')
     logging.info(f'Using comid_lat_lon_z: {comid_lat_lon_z}')
     weight_df = pd.read_csv(weight_table)
@@ -122,33 +121,18 @@ def create_inflow_file(lsm_data: str,
     min_lat = weight_df['lat'].min()
     max_lat = weight_df['lat'].max()
 
-    min_lon_idx = weight_df.loc[weight_df['lon'] == min_lon, 'lon_index'].values[0].astype(int)
-    max_lon_idx = weight_df.loc[weight_df['lon'] == max_lon, 'lon_index'].values[0].astype(int)
-    min_lat_idx = weight_df.loc[weight_df['lat'] == min_lat, 'lat_index'].values[0].astype(int)
-    max_lat_idx = weight_df.loc[weight_df['lat'] == max_lat, 'lat_index'].values[0].astype(int)
-
-    if min_lon_idx > max_lon_idx:
-        min_lon_idx, max_lon_idx = max_lon_idx, min_lon_idx
-    if min_lat_idx > max_lat_idx:
-        min_lat_idx, max_lat_idx = max_lat_idx, min_lat_idx
-
     # for readability, select certain cols from the weight table
     n_wt_rows = weight_df.shape[0]
     stream_ids = weight_df.iloc[:, 0].to_numpy()
-    lat_indices = weight_df['lat_index'].values - min_lat_idx
-    lon_indices = weight_df['lon_index'].values - min_lon_idx
-
-    spatial_slices = {lon_variable: slice(min_lon_idx, max_lon_idx + 1),
-                      lat_variable: slice(min_lat_idx, max_lat_idx + 1)}
+    lat_indices = weight_df['lat_index'].values  # - min_lat_idx
+    lon_indices = weight_df['lon_index'].values  # - min_lon_idx
 
     ds = (
         lsm_dataset
-        .isel(**spatial_slices)
         [runoff_variable]
     )
 
     # Get approximate sizes of arrays and check if we have enough memory
-    logging.info('Checking anticipated memory requirement')
     out_array_size = ds['time'].shape[0] * sorted_rivid_array.shape[0]
     in_array_size = ds['time'].shape[0] * n_wt_rows
     if ds.ndim == 4:
@@ -157,7 +141,6 @@ def create_inflow_file(lsm_data: str,
     _memory_check(total_size)
 
     # Get conversion factor
-    logging.info('Getting conversion factor')
     conversion_factor = 1
     units = ds.attrs.get('units', False)
     if not units:
