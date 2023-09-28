@@ -37,9 +37,12 @@ def create_inflow_file(lsm_data: str,
                        weight_table: str = None,
                        comid_lat_lon_z: str = None,
                        timestep: datetime.timedelta = None,
-                       cumulative: bool = False, ) -> None:
+                       cumulative: bool = False,
+                       file_label: str = None, ) -> None:
     """
     Generate inflow files for use with RAPID.
+
+    output file name pattern is: m3_{vpu_name}_{start_date}_{end_date}_{optional_file_label}.nc
 
     Parameters
     ----------
@@ -59,6 +62,8 @@ def create_inflow_file(lsm_data: str,
         Time step of the inflow data in hours. Default is 3 hours
     cumulative: bool, optional
         Convert the inflow data to incremental values. Default is False
+    file_label: str, optional
+        Label to include in the file name for organization purposes.
     """
     # Ensure that every input file exists
     if weight_table is not None and not os.path.exists(weight_table):
@@ -215,8 +220,10 @@ def create_inflow_file(lsm_data: str,
     os.makedirs(inflow_dir, exist_ok=True)
     start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
     end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
-    inflow_file_path = os.path.join(inflow_dir,
-                                    f'm3_{vpu_name}_{start_date}_{end_date}.nc')
+    file_name = f'm3_{vpu_name}_{start_date}_{end_date}.nc'
+    if file_label is None:
+        file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
+    inflow_file_path = os.path.join(inflow_dir, file_name)
 
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions

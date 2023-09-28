@@ -1,7 +1,6 @@
 import argparse
 import datetime
 import logging
-import os
 import sys
 
 from .inflow import create_inflow_file
@@ -20,6 +19,8 @@ def main():
                         help='Desired time step in hours. Default is 3 hours')
     parser.add_argument('--cumulative', action='store_true', default=False,
                         help='A boolean flag to mark if the runoff is cumulative. Inflows should be incremental')
+    parser.add_argument('--file_label', type=str, default=None,
+                        help='A string to include in the inflow file name. Default is None')
 
     args = parser.parse_args()
 
@@ -38,6 +39,7 @@ def gen(parser, args):
     inflow_dir = args.inflowdir
     timestep = datetime.timedelta(hours=args.timestep)
     cumulative = args.cumulative
+    file_label = args.file_label
 
     if not all([lsm_data, input_dir, inflow_dir]):
         # print usage
