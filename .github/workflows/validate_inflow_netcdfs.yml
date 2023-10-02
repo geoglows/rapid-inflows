@@ -31,4 +31,4 @@ jobs:
 
     - name: Run Tests
       run: |
-        python ./tests/test_compare.py
+        python ./tests/tests.py

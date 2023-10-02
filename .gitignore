@@ -1,4 +1,4 @@
 *.pyc
 example.py
-test*.nc
 .DS_store
+tests/test_results/*.nc
