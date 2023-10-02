@@ -5,7 +5,7 @@ NAME = 'basininflow'
 DESCRIPTION = 'Calculates time series of runoff for basins from gridded runoff LSM data'
 URL = 'https://github.com/geoglows/basininflow'
 AUTHOR = 'Riley Hales PhD'
-REQUIRES_PYTHON = '>=3.11.0'
+REQUIRES_PYTHON = '>=3'
 LICENSE = 'CC BY 4.0'
 
 with open(f'./{NAME}/__init__.py') as f:
