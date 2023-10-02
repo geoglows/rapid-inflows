@@ -62,9 +62,14 @@ def check_function(validation_ds, output_ds, test):
 
 
 # TEST 1: Normal inputs
-create_inflow_file('./tests/inputs/era5_721x1440_sample_data/', 'test_vpu', './tests',
-                   './tests/inputs/weight_era5_721x1440_last_10.csv', './tests/inputs/comid_lat_lon_z_last_10.csv',
-                   False)
+create_inflow_file(
+    './inputs/era5_721x1440_sample_data/',
+    'test_vpu',
+    './tests',
+    weight_table='./inputs/weight_era5_721x1440_last_10.csv',
+    comid_lat_lon_z='./inputs/comid_lat_lon_z_last_10.csv',
+    cumulative=False,
+)
 
 out_ds = nc.Dataset(glob.glob('./tests/test_vpu/*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_last10.nc', 'r')
