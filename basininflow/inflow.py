@@ -178,9 +178,12 @@ def create_inflow_file(lsm_data: str,
     if not np.all(time_diff == datetime_array[1] - datetime_array[0]):
         if timestep is None:
             timestep = datetime_array[1] - datetime_array[0]
+        elif isinstance(timestep,datetime.timedelta):
+            # Convert datetime timedelta to timedelta64[ns]
+            timestep = np.timedelta64(timestep,'ns')
 
         logging.warning("Input datasets do NOT have consistent time steps!")
-        logging.warning(f"Attempting to linearly interpolate non-uniform timesteps to {timestep}")
+        logging.warning(f"Attempting to linearly interpolate non-uniform timesteps to {timestep.astype('timedelta64[h]')}")
 
         # make sure that the rows with a non-uniform timestep are all the same timestep
         rows_with_matching_timesteps = np.where(time_diff == timestep)[0]
@@ -221,7 +224,7 @@ def create_inflow_file(lsm_data: str,
     start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
     end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
     file_name = f'm3_{vpu_name}_{start_date}_{end_date}.nc'
-    if file_label is None:
+    if file_label is not None:
         file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
     inflow_file_path = os.path.join(inflow_dir, file_name)
 
