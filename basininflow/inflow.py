@@ -36,7 +36,7 @@ def create_inflow_file(lsm_data: str,
                        vpu_name: str = None,
                        weight_table: str = None,
                        comid_lat_lon_z: str = None,
-                       timestep: datetime.timedelta = None,
+                       timestep: np.timedelta64 = None,
                        cumulative: bool = False,
                        file_label: str = None, ) -> None:
     """
@@ -105,7 +105,6 @@ def create_inflow_file(lsm_data: str,
             if not len(weight_table):
                 raise FileNotFoundError(f'Could not find a weight table in {input_dir} with shape {dataset_shape}')
             weight_table = weight_table[0]
-            logging.info(f'Using weight table: {weight_table}')
         # check that the grid dimensions are found in the weight table filename
         matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
         if len(matches) != 2:
@@ -173,28 +172,42 @@ def create_inflow_file(lsm_data: str,
     inflow_df = pd.DataFrame(inflow_df, columns=stream_ids, index=datetime_array)
     inflow_df = inflow_df.groupby(by=stream_ids, axis=1).sum()
 
-    # force cumulative so that we can interpolate to a regular timestep easier
-    if not cumulative:
-        inflow_df = inflow_df.cumsum(axis=0)
+    if cumulative:
+        inflow_df = pd.DataFrame(
+            np.vstack([inflow_df.values[0, :], np.diff(inflow_df.values, axis=0)]),
+            index=inflow_df.index,
+            columns=inflow_df.columns
+        )
 
     # Check that all timesteps are the same
     time_diff = np.diff(datetime_array)
     if not np.all(time_diff == datetime_array[1] - datetime_array[0]):
         if timestep is None:
+            logging.warning('Timesteps are not all uniform and a target timestep was not provided.')
             timestep = datetime_array[1] - datetime_array[0]
+            logging.warning(f'Assuming the first timedelta is the target: {timestep.astype("timedelta64[s]")}')
 
+        # # figure out how many uniform timesteps are represented by each row
+        # timesteps_per_row = np.hstack([np.array(timestep), time_diff]) / timestep
+        # df1 = (
+        #     inflow_df
+        #     .div(timesteps_per_row, axis=0)
+        #     .resample(rule=f'{timestep.astype("timedelta64[s]").astype(int)}S')
+        #     .bfill()
+        # )
+
+        if not cumulative:
+            inflow_df = inflow_df.cumsum()
         inflow_df = (
             inflow_df
             .resample(rule=f'{timestep.astype("timedelta64[s]").astype(int)}S')
             .interpolate(method='linear')
         )
-
-    # convert back to incremental
-    inflow_df = pd.DataFrame(
-        np.vstack([inflow_df.values[0, :], np.diff(inflow_df.values, axis=0)]),
-        index=inflow_df.index,
-        columns=inflow_df.columns
-    )
+        inflow_df = pd.DataFrame(
+            np.vstack([inflow_df.values[0, :], np.diff(inflow_df.values, axis=0)]),
+            index=inflow_df.index,
+            columns=inflow_df.columns
+        )
     datetime_array = inflow_df.index.to_numpy()
 
     # Create output inflow netcdf data
