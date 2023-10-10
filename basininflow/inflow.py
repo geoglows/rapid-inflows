@@ -168,7 +168,6 @@ def create_inflow_file(lsm_data: str,
             raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
 
     inflow_df = np.nan_to_num(inflow_df, nan=0)
-    inflow_df[inflow_df < 0] = 0
     inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
     inflow_df = pd.DataFrame(inflow_df, columns=stream_ids, index=datetime_array)
     inflow_df = inflow_df.groupby(by=stream_ids, axis=1).sum()
@@ -202,10 +201,10 @@ def create_inflow_file(lsm_data: str,
         #     .bfill()
         # )
 
-        if not cumulative:
-            inflow_df = inflow_df.cumsum()
+        # everything is forced to be incremental before this step so we can use cumsum to get the cumulative values
         inflow_df = (
             inflow_df
+            .cumsum()
             .resample(rule=f'{timestep.astype("timedelta64[s]").astype(int)}S')
             .interpolate(method='linear')
         )
