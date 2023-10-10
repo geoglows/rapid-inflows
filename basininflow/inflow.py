@@ -77,7 +77,6 @@ def create_inflow_file(lsm_data: str,
         vpu_name = os.path.basename(input_dir)
 
     # open all the ncs and select only the area within the weight table
-    logging.info('Opening LSM files multi-file dataset')
     if os.path.isdir(lsm_data):
         lsm_data = os.path.join(lsm_data, '*.nc*')
     elif os.path.isfile(lsm_data):
@@ -86,8 +85,9 @@ def create_inflow_file(lsm_data: str,
         ...  # this is correct, xarray will interpret the glob sting independently
     elif not os.path.exists(lsm_data) and '*' not in lsm_data:
         raise FileNotFoundError(f'{lsm_data} does not exist and is not a glob pattern')
-    with xr.open_mfdataset(lsm_data) as ds:
 
+    logging.info(f'Opening LSM files {lsm_data[0] if type(lsm_data) == list else lsm_data}')
+    with xr.open_mfdataset(lsm_data) as ds:
         # Select the variable names
         runoff_variable = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in ds.variables][0]
         lon_variable = [x for x in ['lon', 'longitude', 'LONGITUDE', 'LON'] if x in ds.variables][0]
@@ -113,8 +113,8 @@ def create_inflow_file(lsm_data: str,
             raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
 
         # load in weight table and get some information
-        logging.info(f'Using weight table: {weight_table}')
-        logging.info(f'Using comid_lat_lon_z: {comid_lat_lon_z}')
+        logging.debug(f'Using weight table: {weight_table}')
+        logging.debug(f'Using comid_lat_lon_z: {comid_lat_lon_z}')
         weight_df = pd.read_csv(weight_table)
         comid_df = pd.read_csv(comid_lat_lon_z)
 
@@ -157,7 +157,7 @@ def create_inflow_file(lsm_data: str,
         logging.info('Reading Time values')
         datetime_array = ds['time'].to_numpy()
 
-        logging.info('Creating inflow array')
+        logging.info('Reading Runoff values')
         if ds.ndim == 3:
             inflow_df = ds.values[:, lat_indices, lon_indices]
         elif ds.ndim == 4:
@@ -178,6 +178,8 @@ def create_inflow_file(lsm_data: str,
             index=inflow_df.index,
             columns=inflow_df.columns
         )
+
+    inflow_df[inflow_df < 0] = 0
 
     # Check that all timesteps are the same
     time_diff = np.diff(datetime_array)
@@ -219,6 +221,7 @@ def create_inflow_file(lsm_data: str,
     if file_label is not None:
         file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
     inflow_file_path = os.path.join(inflow_dir, file_name)
+    logging.debug(f'Writing inflow file to {inflow_file_path}')
 
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
