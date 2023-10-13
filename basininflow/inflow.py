@@ -77,7 +77,9 @@ def create_inflow_file(lsm_data: str,
         vpu_name = os.path.basename(input_dir)
 
     # open all the ncs and select only the area within the weight table
-    if os.path.isdir(lsm_data):
+    if type(lsm_data) == list:
+        ...  # this is correct, a list of files is allowed
+    elif os.path.isdir(lsm_data):
         lsm_data = os.path.join(lsm_data, '*.nc*')
     elif os.path.isfile(lsm_data):
         ...  # this is correct, a single file is allowed
