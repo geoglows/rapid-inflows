@@ -34,4 +34,9 @@ setup(
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Hydrology',
     ],
+    entrypoints={
+        'console_scripts': [
+            'basininflow = basininflow.cli:main',
+        ],
+    },
 )

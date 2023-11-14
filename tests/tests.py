@@ -64,8 +64,8 @@ def check_function(validation_ds, output_ds, test):
 
 
 # TEST 1: Normal inputs, directory of LSM
-create_inflow_file('tests/inputs/era5_721x1440_sample_data/', 
-                   'tests/test_vpu/123', 
+create_inflow_file('tests/inputs/era5_721x1440_sample_data/',
+                   'tests/test_vpu/123',
                    'tests/test_results/',)
 
 out_ds = nc.Dataset(glob.glob('./tests/test_results/*_123_*.nc')[0], 'r')
@@ -74,8 +74,8 @@ val_ds = nc.Dataset('tests/validation/1980_01_01to10_123.nc', 'r')
 check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
 
 # TEST 2: Forecast inputs, auto timestep
-create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc', 
-                   'tests/test_vpu/345', 
+create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
+                   'tests/test_vpu/345',
                    'tests/test_results/',
                    cumulative=True)
 
@@ -85,8 +85,8 @@ val_ds = nc.Dataset('tests/validation/forecast_3_to_6_hour.nc', 'r')
 check_function(val_ds, out_ds, 'TEST 2: Forecast inputs, auto timestep')
 
 # TEST 3: Forecast inputs, 1 hour timestep
-create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc', 
-                   'tests/test_vpu/345', 
+create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
+                   'tests/test_vpu/345',
                    'tests/test_results/',
                    vpu_name='custom_vpu',
                    cumulative=True,
