@@ -187,9 +187,9 @@ def create_inflow_file(lsm_data: str,
             logging.warning('Timesteps are not all uniform and a target timestep was not provided.')
             timestep = datetime_array[1] - datetime_array[0]
             logging.warning(f'Assuming the first timedelta is the target: {timestep.astype("timedelta64[s]")}')
-        elif isinstance(timestep,datetime.timedelta):
+        elif isinstance(timestep, datetime.timedelta):
             # Convert datetime timedelta to timedelta64[ns]
-            timestep = np.timedelta64(timestep,'ns')
+            timestep = np.timedelta64(timestep, 'ns')
 
         # # figure out how many uniform timesteps are represented by each row
         # timesteps_per_row = np.hstack([np.array(timestep), time_diff]) / timestep
