@@ -191,15 +191,6 @@ def create_inflow_file(lsm_data: str,
             # Convert datetime timedelta to timedelta64[ns]
             timestep = np.timedelta64(timestep, 'ns')
 
-        # # figure out how many uniform timesteps are represented by each row
-        # timesteps_per_row = np.hstack([np.array(timestep), time_diff]) / timestep
-        # df1 = (
-        #     inflow_df
-        #     .div(timesteps_per_row, axis=0)
-        #     .resample(rule=f'{timestep.astype("timedelta64[s]").astype(int)}S')
-        #     .bfill()
-        # )
-
         if not cumulative:
             inflow_df = inflow_df.cumsum()
         inflow_df = (
