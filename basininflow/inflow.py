@@ -169,57 +169,45 @@ def create_inflow_file(lsm_data: str,
         else:
             raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
 
-    inflow_df = np.nan_to_num(inflow_df, nan=0)
-    inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
     inflow_df = pd.DataFrame(inflow_df, columns=stream_ids, index=datetime_array)
-    inflow_df = inflow_df.groupby(by=stream_ids, axis=1).sum()
 
-    if cumulative:
-        inflow_df = pd.DataFrame(
-            np.vstack([inflow_df.values[0, :], np.diff(inflow_df.values, axis=0)]),
-            index=inflow_df.index,
-            columns=inflow_df.columns
-        )
-
-    inflow_df[inflow_df < 0] = 0
-
-    # Check that all timesteps are the same
-    time_diff = np.diff(datetime_array)
-    if not np.all(time_diff == datetime_array[1] - datetime_array[0]):
-        if timestep is None:
-            logging.warning('Timesteps are not all uniform and a target timestep was not provided.')
-            timestep = datetime_array[1] - datetime_array[0]
-            logging.warning(f'Assuming the first timedelta is the target: {timestep.astype("timedelta64[s]")}')
-        elif isinstance(timestep,datetime.timedelta):
-            # Convert datetime timedelta to timedelta64[ns]
-            timestep = np.timedelta64(timestep,'ns')
-
-        # # figure out how many uniform timesteps are represented by each row
-        # timesteps_per_row = np.hstack([np.array(timestep), time_diff]) / timestep
-        # df1 = (
-        #     inflow_df
-        #     .div(timesteps_per_row, axis=0)
-        #     .resample(rule=f'{timestep.astype("timedelta64[s]").astype(int)}S')
-        #     .bfill()
-        # )
-
-        # everything is forced to be incremental before this step so we can use cumsum to get the cumulative values
-        inflow_df = (
-            inflow_df
-            .cumsum()
-            .resample(rule=f'{timestep.astype("timedelta64[s]").astype(int)}S')
-            .interpolate(method='linear')
-        )
-        inflow_df = pd.DataFrame(
-            np.vstack([inflow_df.values[0, :], np.diff(inflow_df.values, axis=0)]),
-            index=inflow_df.index,
-            columns=inflow_df.columns
-        )
-    datetime_array = inflow_df.index.to_numpy()
-
-    # Create output inflow netcdf data
-    logging.info("Writing inflows to file")
-    os.makedirs(inflow_dir, exist_ok=True)
+    # if cumulative:
+    #     logging.info('Converting to cumulative values')
+    #     inflow_df = pd.DataFrame(
+    #         np.vstack([inflow_df.values[0, :], np.diff(inflow_df.values, axis=0)]),
+    #         index=inflow_df.index,
+    #         columns=inflow_df.columns
+    #     )
+    #
+    # # Check that all timesteps are the same
+    # time_diff = np.diff(datetime_array)
+    # if not np.all(time_diff == datetime_array[1] - datetime_array[0]):
+    #     logging.warning('Timesteps are not all uniform')
+    #     if timestep is None:
+    #         logging.warning('Timesteps are not all uniform and a target timestep was not provided.')
+    #         timestep = datetime_array[1] - datetime_array[0]
+    #         logging.warning(f'Assuming the first timedelta is the target: {timestep.astype("timedelta64[s]")}')
+    #     elif isinstance(timestep,datetime.timedelta):
+    #         # Convert datetime timedelta to timedelta64[ns]
+    #         timestep = np.timedelta64(timestep,'ns')
+    #
+    #     # everything is forced to be incremental before this step so we can use cumsum to get the cumulative values
+    #     inflow_df = (
+    #         inflow_df
+    #         .cumsum()
+    #         .resample(rule=f'{timestep.astype("timedelta64[s]").astype(int)}S')
+    #         .interpolate(method='linear')
+    #     )
+    #     inflow_df = pd.DataFrame(
+    #         np.vstack([inflow_df.values[0, :], np.diff(inflow_df.values, axis=0)]),
+    #         index=inflow_df.index,
+    #         columns=inflow_df.columns
+    #     )
+    # datetime_array = inflow_df.index.to_numpy()
+    #
+    # # Create output inflow netcdf data
+    # logging.info("Writing inflows to file")
+    # os.makedirs(inflow_dir, exist_ok=True)
     start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
     end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
     file_name = f'm3_{vpu_name}_{start_date}_{end_date}.nc'
@@ -227,6 +215,14 @@ def create_inflow_file(lsm_data: str,
         file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
     inflow_file_path = os.path.join(inflow_dir, file_name)
     logging.debug(f'Writing inflow file to {inflow_file_path}')
+
+    # CHANGES
+    logging.info('running changed functions')
+    inflow_df = inflow_df.replace(np.nan, 0)
+    inflow_df[inflow_df < 0] = 0
+    inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
+    inflow_df = inflow_df.groupby(by=stream_ids, axis=1).sum()
+    inflow_df = inflow_df[sorted_rivid_array]
 
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
@@ -237,7 +233,7 @@ def create_inflow_file(lsm_data: str,
         # m3_riv
         # note - nan's and fill values are not supported on netcdf3 files
         m3_riv_var = inflow_nc.createVariable('m3_riv', 'f4', ('time', 'rivid'))
-        m3_riv_var[:] = inflow_df.values
+        m3_riv_var[:] = inflow_df.to_numpy()
         m3_riv_var.long_name = 'accumulated inflow inflow volume in river reach boundaries'
         m3_riv_var.units = 'm3'
         m3_riv_var.coordinates = 'lon lat'
