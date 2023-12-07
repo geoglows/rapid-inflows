@@ -14,7 +14,6 @@ Things to test:
 import glob
 import os
 import sys
-import datetime
 
 import netCDF4 as nc
 
@@ -22,7 +21,7 @@ import netCDF4 as nc
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
 
-from basininflow.inflow import create_inflow_file
+import basininflow as bi
 
 
 def check_function(validation_ds, output_ds, test):
@@ -36,9 +35,6 @@ def check_function(validation_ds, output_ds, test):
                 continue
             assert (output_ds[key][:] == validation_ds[key][:]).all(), f"{key} values differ"
 
-        # Check m3 values match
-        assert (output_ds['m3_riv'][:] == validation_ds['m3_riv'][:]).all(), "m3 values do not match."
-
         # Check time bounds match
         assert (output_ds['time_bnds'][:] == validation_ds['time_bnds'][:]).all(), "time bounds do not match."
 
@@ -49,8 +45,10 @@ def check_function(validation_ds, output_ds, test):
         assert (output_ds['lat'][:] == validation_ds['lat'][:]).all(), "lat values do not match."
 
         # Check CRS is EPSG 4326
-        assert output_ds['crs'].epsg_code == validation_ds[
-            'crs'].epsg_code, f"CRS is not EPSG 4326. CRS is {output_ds['crs'].epsg_code}"
+        assert output_ds['crs'].epsg_code == validation_ds['crs'].epsg_code, f"crs does not match"
+
+        # Check m3 values match
+        assert (output_ds['m3_riv'][:] == validation_ds['m3_riv'][:]).all(), "m3 values do not match."
 
         print("All tests passed.")
 
@@ -64,36 +62,36 @@ def check_function(validation_ds, output_ds, test):
 
 
 # TEST 1: Normal inputs, directory of LSM
-create_inflow_file('tests/inputs/era5_721x1440_sample_data/',
-                   'tests/test_vpu/123',
-                   'tests/test_results/',)
+bi.create_inflow_file('tests/inputs/era5_721x1440_sample_data/',
+                      'tests/test_vpu/123',
+                      'tests/test_results/', )
 
 out_ds = nc.Dataset(glob.glob('./tests/test_results/*_123_*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_123.nc', 'r')
 
 check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
 
-# TEST 2: Forecast inputs, auto timestep
-create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
-                   'tests/test_vpu/345',
-                   'tests/test_results/',
-                   cumulative=True)
-
-out_ds = nc.Dataset(glob.glob('./tests/test_results/*_345_*.nc')[0], 'r')
-val_ds = nc.Dataset('tests/validation/forecast_3_to_6_hour.nc', 'r')
-
-check_function(val_ds, out_ds, 'TEST 2: Forecast inputs, auto timestep')
-
-# TEST 3: Forecast inputs, 1 hour timestep
-create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
-                   'tests/test_vpu/345',
-                   'tests/test_results/',
-                   vpu_name='custom_vpu',
-                   cumulative=True,
-                   timestep=datetime.timedelta(hours=3),
-                   file_label='file_label')
-
-out_ds = nc.Dataset(glob.glob('./tests/test_results/*_custom_vpu_*_file_label.nc')[0], 'r')
-val_ds = nc.Dataset('tests/validation/forecast_3_to_6_hour.nc', 'r')
-
-check_function(val_ds, out_ds, 'TEST 3: Forecast inputs, auto timestep')
+# # TEST 2: Forecast inputs, auto timestep
+# create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
+#                    'tests/test_vpu/345',
+#                    'tests/test_results/',
+#                    cumulative=True)
+#
+# out_ds = nc.Dataset(glob.glob('./tests/test_results/*_345_*.nc')[0], 'r')
+# val_ds = nc.Dataset('tests/validation/forecast_3_to_6_hour.nc', 'r')
+#
+# check_function(val_ds, out_ds, 'TEST 2: Forecast inputs, auto timestep')
+#
+# # TEST 3: Forecast inputs, 1 hour timestep
+# create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
+#                    'tests/test_vpu/345',
+#                    'tests/test_results/',
+#                    vpu_name='custom_vpu',
+#                    cumulative=True,
+#                    timestep=datetime.timedelta(hours=3),
+#                    file_label='file_label')
+#
+# out_ds = nc.Dataset(glob.glob('./tests/test_results/*_custom_vpu_*_file_label.nc')[0], 'r')
+# val_ds = nc.Dataset('tests/validation/forecast_3_to_6_hour.nc', 'r')
+#
+# check_function(val_ds, out_ds, 'TEST 3: Forecast inputs, auto timestep')

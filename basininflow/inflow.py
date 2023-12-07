@@ -214,8 +214,6 @@ def create_inflow_file(lsm_data: str,
     logging.info("Writing inflows to file")
     os.makedirs(inflow_dir, exist_ok=True)
 
-    inflow_df = inflow_df * .001
-
     datetime_array = inflow_df.index.to_numpy()
     start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
     end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
