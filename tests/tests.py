@@ -60,11 +60,11 @@ def check_function(validation_ds, output_ds, test):
         output_ds.close()
         validation_ds.close()
 
-
+os.chdir('/Users/rchales/code/basininflow/')
 # TEST 1: Normal inputs, directory of LSM
 bi.create_inflow_file('tests/inputs/era5_721x1440_sample_data/',
                       'tests/test_vpu/123',
-                      'tests/test_results/', )
+                      'tests/test_results/',)
 
 out_ds = nc.Dataset(glob.glob('./tests/test_results/*_123_*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_123.nc', 'r')

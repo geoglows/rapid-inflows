@@ -30,6 +30,20 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
         {psutil._common.bytes2human(available_mem)} available memory...")
 
 
+def _cumulative_to_incremental(df) -> pd.DataFrame:
+    logging.info('Converting to incremental values')
+    return pd.DataFrame(
+        np.vstack([df.values[0, :], np.diff(df.values, axis=0)]),
+        index=df.index,
+        columns=df.columns
+    )
+
+
+def _incremental_to_cumulative(df) -> pd.DataFrame:
+    logging.info('Converting to cumulative values')
+    return df.cumsum()
+
+
 def create_inflow_file(lsm_data: str,
                        input_dir: str,
                        inflow_dir: str,
@@ -171,23 +185,12 @@ def create_inflow_file(lsm_data: str,
 
     inflow_df = pd.DataFrame(inflow_df, columns=stream_ids, index=datetime_array)
     inflow_df = inflow_df.replace(np.nan, 0)
-    inflow_df[inflow_df < 0] = 0
+    # inflow_df[inflow_df < 0] = 0
     inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
-    inflow_df = inflow_df.groupby(by=stream_ids, axis=1).sum()
+    inflow_df = inflow_df.T.groupby(by=stream_ids).sum().T
     inflow_df = inflow_df[sorted_rivid_array]
 
-    def _cumulative_to_incremental(df) -> pd.DataFrame:
-        return pd.DataFrame(
-            np.vstack([df.values[0, :], np.diff(df.values, axis=0)]),
-            index=df.index,
-            columns=df.columns
-        )
-
-    def _incremental_to_cumulative(df) -> pd.DataFrame:
-        return df.cumsum()
-
     if cumulative:
-        logging.info('Converting to cumulative values')
         inflow_df = _cumulative_to_incremental(inflow_df)
 
     # Check that all timesteps are the same
@@ -198,9 +201,9 @@ def create_inflow_file(lsm_data: str,
             logging.warning('Timesteps are not all uniform and a target timestep was not provided.')
             timestep = datetime_array[1] - datetime_array[0]
             logging.warning(f'Assuming the first timedelta is the target: {timestep.astype("timedelta64[s]")}')
-        elif isinstance(timestep,datetime.timedelta):
+        elif isinstance(timestep, datetime.timedelta):
             # Convert datetime timedelta to timedelta64[ns]
-            timestep = np.timedelta64(timestep,'ns')
+            timestep = np.timedelta64(timestep, 'ns')
 
         # everything is forced to be incremental before this step so we can use cumsum to get the cumulative values
         inflow_df = (
@@ -210,6 +213,7 @@ def create_inflow_file(lsm_data: str,
         )
         inflow_df = _cumulative_to_incremental(inflow_df)
 
+    logging.info(np.max(inflow_df.values))
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
     os.makedirs(inflow_dir, exist_ok=True)
