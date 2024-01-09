@@ -52,7 +52,8 @@ def create_inflow_file(lsm_data: str,
                        comid_lat_lon_z: str = None,
                        timestep: datetime.timedelta = None,
                        cumulative: bool = False,
-                       file_label: str = None, ) -> None:
+                       file_label: str = None,
+                       enforce_positive_runoff: bool = False, ) -> None:
     """
     Generate inflow files for use with RAPID.
 
@@ -185,13 +186,15 @@ def create_inflow_file(lsm_data: str,
 
     inflow_df = pd.DataFrame(inflow_df, columns=stream_ids, index=datetime_array)
     inflow_df = inflow_df.replace(np.nan, 0)
-    # inflow_df[inflow_df < 0] = 0
     inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
     inflow_df = inflow_df.T.groupby(by=stream_ids).sum().T
     inflow_df = inflow_df[sorted_rivid_array]
 
     if cumulative:
         inflow_df = _cumulative_to_incremental(inflow_df)
+
+    if enforce_positive_runoff:
+        inflow_df = inflow_df.clip(lower=0)
 
     # Check that all timesteps are the same
     time_diff = np.diff(datetime_array)
