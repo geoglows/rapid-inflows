@@ -79,6 +79,8 @@ def create_inflow_file(lsm_data: str,
         Convert the inflow data to incremental values. Default is False
     file_label: str, optional
         Label to include in the file name for organization purposes.
+    enforce_positive_runoff: bool, optional
+           Set all negative values to zero. Default is False
     """
     # Ensure that every input file exists
     if weight_table is not None and not os.path.exists(weight_table):
@@ -92,7 +94,7 @@ def create_inflow_file(lsm_data: str,
         vpu_name = os.path.basename(input_dir)
 
     # open all the ncs and select only the area within the weight table
-    if type(lsm_data) == list:
+    if type(lsm_data) is list:
         ...  # this is correct, a list of files is allowed
     elif os.path.isdir(lsm_data):
         lsm_data = os.path.join(lsm_data, '*.nc*')
@@ -216,14 +218,12 @@ def create_inflow_file(lsm_data: str,
         )
         inflow_df = _cumulative_to_incremental(inflow_df)
 
-    logging.info(np.max(inflow_df.values))
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
     os.makedirs(inflow_dir, exist_ok=True)
-
     datetime_array = inflow_df.index.to_numpy()
-    start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
-    end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
+    start_date = datetime.datetime.fromtimestamp(datetime_array[0].astype(float) / 1e9, datetime.UTC).strftime('%Y%m%d')
+    end_date = datetime.datetime.fromtimestamp(datetime_array[-1].astype(float) / 1e9, datetime.UTC).strftime('%Y%m%d')
     file_name = f'm3_{vpu_name}_{start_date}_{end_date}.nc'
     if file_label is not None:
         file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
