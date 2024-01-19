@@ -19,6 +19,7 @@ import netCDF4 as nc
 
 # Add the project_root directory to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+os.chdir(project_root)
 sys.path.append(project_root)
 
 import basininflow as bi
@@ -60,19 +61,20 @@ def check_function(validation_ds, output_ds, test):
         output_ds.close()
         validation_ds.close()
 
-os.chdir('/Users/rchales/code/basininflow/')
 # TEST 1: Normal inputs, directory of LSM
 bi.create_inflow_file('tests/inputs/era5_721x1440_sample_data/',
                       'tests/test_vpu/123',
-                      'tests/test_results/',)
+                      'tests/test_results/',
+                      cumulative=False,
+                      enforce_positive_runoff=True, )
 
 out_ds = nc.Dataset(glob.glob('./tests/test_results/*_123_*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_123.nc', 'r')
 
-check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
+check_function(val_ds, out_ds, 'TEST 1: Base. Constant Timestep, Incremental Runoff, Force Positive Runoff')
 
 # # TEST 2: Forecast inputs, auto timestep
-# create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
+# bi.create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
 #                    'tests/test_vpu/345',
 #                    'tests/test_results/',
 #                    cumulative=True)
@@ -83,7 +85,7 @@ check_function(val_ds, out_ds, 'TEST 1: Normal inputs')
 # check_function(val_ds, out_ds, 'TEST 2: Forecast inputs, auto timestep')
 #
 # # TEST 3: Forecast inputs, 1 hour timestep
-# create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
+# bi.create_inflow_file('tests/inputs/era5_2560x5120_sample_data/forecast_data.nc',
 #                    'tests/test_vpu/345',
 #                    'tests/test_results/',
 #                    vpu_name='custom_vpu',
