@@ -30,6 +30,20 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
         {psutil._common.bytes2human(available_mem)} available memory...")
 
 
+def _cumulative_to_incremental(df) -> pd.DataFrame:
+    logging.info('Converting to incremental values')
+    return pd.DataFrame(
+        np.vstack([df.values[0, :], np.diff(df.values, axis=0)]),
+        index=df.index,
+        columns=df.columns
+    )
+
+
+def _incremental_to_cumulative(df) -> pd.DataFrame:
+    logging.info('Converting to cumulative values')
+    return df.cumsum()
+
+
 def create_inflow_file(lsm_data: str,
                        input_dir: str,
                        inflow_dir: str,
@@ -38,7 +52,8 @@ def create_inflow_file(lsm_data: str,
                        comid_lat_lon_z: str = None,
                        timestep: datetime.timedelta = None,
                        cumulative: bool = False,
-                       file_label: str = None, ) -> None:
+                       file_label: str = None,
+                       force_positive_runoff: bool = False, ) -> None:
     """
     Generate inflow files for use with RAPID.
 
@@ -64,6 +79,8 @@ def create_inflow_file(lsm_data: str,
         Convert the inflow data to incremental values. Default is False
     file_label: str, optional
         Label to include in the file name for organization purposes.
+    force_positive_runoff: bool, optional
+           Set all negative values to zero. Default is False
     """
     # Ensure that every input file exists
     if weight_table is not None and not os.path.exists(weight_table):
@@ -77,7 +94,7 @@ def create_inflow_file(lsm_data: str,
         vpu_name = os.path.basename(input_dir)
 
     # open all the ncs and select only the area within the weight table
-    if type(lsm_data) == list:
+    if type(lsm_data) is list:
         ...  # this is correct, a list of files is allowed
     elif os.path.isdir(lsm_data):
         lsm_data = os.path.join(lsm_data, '*.nc*')
@@ -169,26 +186,16 @@ def create_inflow_file(lsm_data: str,
         else:
             raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
 
+    # This order of operations is important
     inflow_df = pd.DataFrame(inflow_df, columns=stream_ids, index=datetime_array)
     inflow_df = inflow_df.replace(np.nan, 0)
-    inflow_df[inflow_df < 0] = 0
-    inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
-    inflow_df = inflow_df.groupby(by=stream_ids, axis=1).sum()
-    inflow_df = inflow_df[sorted_rivid_array]
-
-    def _cumulative_to_incremental(df) -> pd.DataFrame:
-        return pd.DataFrame(
-            np.vstack([df.values[0, :], np.diff(df.values, axis=0)]),
-            index=df.index,
-            columns=df.columns
-        )
-
-    def _incremental_to_cumulative(df) -> pd.DataFrame:
-        return df.cumsum()
-
     if cumulative:
-        logging.info('Converting to cumulative values')
         inflow_df = _cumulative_to_incremental(inflow_df)
+    if force_positive_runoff:
+        inflow_df = inflow_df.clip(lower=0)
+    inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
+    inflow_df = inflow_df.T.groupby(by=stream_ids).sum().T
+    inflow_df = inflow_df[sorted_rivid_array]
 
     # Check that all timesteps are the same
     time_diff = np.diff(datetime_array)
@@ -198,9 +205,9 @@ def create_inflow_file(lsm_data: str,
             logging.warning('Timesteps are not all uniform and a target timestep was not provided.')
             timestep = datetime_array[1] - datetime_array[0]
             logging.warning(f'Assuming the first timedelta is the target: {timestep.astype("timedelta64[s]")}')
-        elif isinstance(timestep,datetime.timedelta):
+        elif isinstance(timestep, datetime.timedelta):
             # Convert datetime timedelta to timedelta64[ns]
-            timestep = np.timedelta64(timestep,'ns')
+            timestep = np.timedelta64(timestep, 'ns')
 
         # everything is forced to be incremental before this step so we can use cumsum to get the cumulative values
         inflow_df = (
@@ -213,12 +220,9 @@ def create_inflow_file(lsm_data: str,
     # Create output inflow netcdf data
     logging.info("Writing inflows to file")
     os.makedirs(inflow_dir, exist_ok=True)
-
-    inflow_df = inflow_df * .001
-
     datetime_array = inflow_df.index.to_numpy()
-    start_date = datetime.datetime.utcfromtimestamp(datetime_array[0].astype(float) / 1e9).strftime('%Y%m%d')
-    end_date = datetime.datetime.utcfromtimestamp(datetime_array[-1].astype(float) / 1e9).strftime('%Y%m%d')
+    start_date = datetime.datetime.fromtimestamp(datetime_array[0].astype(float) / 1e9, datetime.UTC).strftime('%Y%m%d')
+    end_date = datetime.datetime.fromtimestamp(datetime_array[-1].astype(float) / 1e9, datetime.UTC).strftime('%Y%m%d')
     file_name = f'm3_{vpu_name}_{start_date}_{end_date}.nc'
     if file_label is not None:
         file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
