@@ -53,7 +53,7 @@ def create_inflow_file(lsm_data: str,
                        timestep: datetime.timedelta = None,
                        cumulative: bool = False,
                        file_label: str = None,
-                       enforce_positive_runoff: bool = False, ) -> None:
+                       force_positive_runoff: bool = False, ) -> None:
     """
     Generate inflow files for use with RAPID.
 
@@ -79,7 +79,7 @@ def create_inflow_file(lsm_data: str,
         Convert the inflow data to incremental values. Default is False
     file_label: str, optional
         Label to include in the file name for organization purposes.
-    enforce_positive_runoff: bool, optional
+    force_positive_runoff: bool, optional
            Set all negative values to zero. Default is False
     """
     # Ensure that every input file exists
@@ -186,11 +186,12 @@ def create_inflow_file(lsm_data: str,
         else:
             raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
 
+    # This order of operations is important
     inflow_df = pd.DataFrame(inflow_df, columns=stream_ids, index=datetime_array)
     inflow_df = inflow_df.replace(np.nan, 0)
     if cumulative:
         inflow_df = _cumulative_to_incremental(inflow_df)
-    if enforce_positive_runoff:
+    if force_positive_runoff:
         inflow_df = inflow_df.clip(lower=0)
     inflow_df = inflow_df * weight_df['area_sqm'].values * conversion_factor
     inflow_df = inflow_df.T.groupby(by=stream_ids).sum().T

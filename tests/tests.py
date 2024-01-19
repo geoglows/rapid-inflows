@@ -62,11 +62,8 @@ def check_function(validation_ds, output_ds, test):
         validation_ds.close()
 
 # TEST 1: Normal inputs, directory of LSM
-bi.create_inflow_file('tests/inputs/era5_721x1440_sample_data/',
-                      'tests/test_vpu/123',
-                      'tests/test_results/',
-                      cumulative=False,
-                      enforce_positive_runoff=True, )
+bi.create_inflow_file('tests/inputs/era5_721x1440_sample_data/', 'tests/test_vpu/123', 'tests/test_results/',
+                      cumulative=False, force_positive_runoff=True)
 
 out_ds = nc.Dataset(glob.glob('./tests/test_results/*_123_*.nc')[0], 'r')
 val_ds = nc.Dataset('tests/validation/1980_01_01to10_123.nc', 'r')

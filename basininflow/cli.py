@@ -53,12 +53,5 @@ def gen(parser, args):
         return
 
     # Create the inflow file for each LSM file
-    create_inflow_file(
-        lsm_data,
-        input_dir,
-        inflow_dir,
-        timestep=timestep,
-        cumulative=cumulative,
-        file_label=file_label
-    )
+    create_inflow_file(lsm_data, input_dir, inflow_dir, timestep=timestep, cumulative=cumulative, file_label=file_label)
     return
