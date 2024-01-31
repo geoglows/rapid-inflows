@@ -221,8 +221,8 @@ def create_inflow_file(lsm_data: str,
     logging.info("Writing inflows to file")
     os.makedirs(inflow_dir, exist_ok=True)
     datetime_array = inflow_df.index.to_numpy()
-    start_date = datetime.datetime.fromtimestamp(datetime_array[0].astype(float) / 1e9, datetime.UTC).strftime('%Y%m%d')
-    end_date = datetime.datetime.fromtimestamp(datetime_array[-1].astype(float) / 1e9, datetime.UTC).strftime('%Y%m%d')
+    start_date = pd.to_datetime(datetime_array[0]).strftime('%Y%m%d')
+    end_date = pd.to_datetime(datetime_array[-1]).strftime('%Y%m%d')
     file_name = f'm3_{vpu_name}_{start_date}_{end_date}.nc'
     if file_label is not None:
         file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
