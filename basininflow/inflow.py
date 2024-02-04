@@ -117,21 +117,36 @@ def create_inflow_file(lsm_data: str,
     elif not os.path.exists(lsm_data) and '*' not in lsm_data:
         raise FileNotFoundError(f'{lsm_data} does not exist and is not a glob pattern')
 
+    def _guess_variable_name(var_name: str, possible_matches: list) -> str:
+        if len(possible_matches) == 0:
+            raise ValueError(f"No {var_name} variable found in LSM data. Check dataset or specify {var_name}_var")
+        if len(possible_matches) == 1:
+            logging.info(f'Found {var_name} variable: "{possible_matches[0]}"')
+            return possible_matches[0]
+        elif len(possible_matches) > 1:
+            raise ValueError(f"Multiple {var_name} variables found. Specify with {var_name}_var: {possible_matches}")
+        else:
+            raise ValueError(f"Unexpected error finding {var_name} variable. Check dataset or specify {var_name}_var")
+
     logging.info(f'Opening LSM files {lsm_data[0] if type(lsm_data) == list else lsm_data}')
     with xr.open_mfdataset(lsm_data) as ds:
         # Select the variable names
         if not runoff_var:
-            logging.warning('Runoff variable provided. Guessing from default names')
-            runoff_var = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in ds.variables][0]
+            logging.warning('Runoff variable not given. Guessing from default names')
+            runoff_var = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in ds.variables]
+            runoff_var = _guess_variable_name('runoff', runoff_var)
         if not x_var:
             logging.warning('X variable not given. Guessing from default names.')
-            x_var = [x for x in ['x', 'lon', 'longitude', 'LONGITUDE', 'LON'] if x in ds.variables][0]
+            x_var = [x for x in ['x', 'lon', 'longitude', 'LONGITUDE', 'LON'] if x in ds.variables]
+            x_var = _guess_variable_name('x', x_var)
         if not y_var:
             logging.warning('Y variable not given. Guessing from default names.')
             y_var = [x for x in ['y', 'lat', 'latitude', 'LATITUDE', 'LAT'] if x in ds.variables][0]
+            y_var = _guess_variable_name('y', y_var)
         if not time_var:
             logging.warning('Time variable not given. Guessing from default names.')
             time_var = [x for x in ['time', 'TIME', ] if x in ds.variables][0]
+            time_var = _guess_variable_name('time', time_var)
 
         # Check that the input table dimensions match the dataset dimensions
         # This gets us the shape, while ignoring the time dimension
