@@ -1,7 +1,7 @@
 name: inflows
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
   - dask
   - netcdf4
