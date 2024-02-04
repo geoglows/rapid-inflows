@@ -141,11 +141,11 @@ def create_inflow_file(lsm_data: str,
             x_var = _guess_variable_name('x', x_var)
         if not y_var:
             logging.warning('Y variable not given. Guessing from default names.')
-            y_var = [x for x in ['y', 'lat', 'latitude', 'LATITUDE', 'LAT'] if x in ds.variables][0]
+            y_var = [x for x in ['y', 'lat', 'latitude', 'LATITUDE', 'LAT'] if x in ds.variables]
             y_var = _guess_variable_name('y', y_var)
         if not time_var:
             logging.warning('Time variable not given. Guessing from default names.')
-            time_var = [x for x in ['time', 'TIME', ] if x in ds.variables][0]
+            time_var = [x for x in ['time', 'TIME', ] if x in ds.variables]
             time_var = _guess_variable_name('time', time_var)
 
         # Check that the input table dimensions match the dataset dimensions
