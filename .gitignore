@@ -2,3 +2,6 @@
 example.py
 .DS_store
 tests/test_results/*.nc
+*.egg-info
+build
+dist
