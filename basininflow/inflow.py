@@ -11,25 +11,6 @@ import psutil
 import xarray as xr
 
 
-def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: float = 0.8):
-    """
-    Internal function to check if the arrays we create will be larger than the memory available.
-    Also warns against very large arrays. Default datatype of arrays is np.float32.
-    By default, the warning will be announced if memory consumption is projected to be greater than
-    80% of avaiable memory
-    """
-    num_bytes = np.dtype(dtype).itemsize * size
-    available_mem = psutil.virtual_memory().available
-
-    if num_bytes >= available_mem:
-        raise MemoryError(
-            f"Trying to allocate {psutil._common.bytes2human(num_bytes)} of "
-            f"{psutil._common.bytes2human(available_mem)} available")
-    if num_bytes >= available_mem * ram_buffer_percentage:
-        print(f"WARNING: arrays will use ~{round(num_bytes / available_mem, 1)}% of \
-        {psutil._common.bytes2human(available_mem)} available memory...")
-
-
 def _cumulative_to_incremental(df) -> pd.DataFrame:
     logging.info('Converting to incremental values')
     return pd.DataFrame(
@@ -52,6 +33,7 @@ def create_inflow_file(lsm_data: str,
                        comid_lat_lon_z: str = None,
                        timestep: datetime.timedelta = None,
                        cumulative: bool = False,
+                       dates_in_filename: bool = True,
                        file_label: str = None,
                        force_positive_runoff: bool = False,
                        runoff_var: str = None,
@@ -81,6 +63,8 @@ def create_inflow_file(lsm_data: str,
         Time step of the inflow data in hours. Default is 3 hours
     cumulative: bool, optional
         Convert the inflow data to incremental values. Default is False
+    dates_in_filename: bool, optional
+        Include the start and end dates in the file name. Default is True
     file_label: str, optional
         Label to include in the file name for organization purposes.
     force_positive_runoff: bool, optional
@@ -189,14 +173,6 @@ def create_inflow_file(lsm_data: str,
 
         ds = ds[runoff_var]
 
-        # Get approximate sizes of arrays and check if we have enough memory
-        out_array_size = ds[time_var].shape[0] * sorted_rivid_array.shape[0]
-        in_array_size = ds[time_var].shape[0] * n_wt_rows
-        if ds.ndim == 4:
-            in_array_size *= 2
-        total_size = out_array_size + in_array_size
-        _memory_check(total_size)
-
         # Get conversion factor
         conversion_factor = 1
         units = ds.attrs.get('units', False)
@@ -257,11 +233,14 @@ def create_inflow_file(lsm_data: str,
     logging.info("Writing inflows to file")
     os.makedirs(inflow_dir, exist_ok=True)
     datetime_array = inflow_df.index.to_numpy()
-    start_date = pd.to_datetime(datetime_array[0]).strftime('%Y%m%d')
-    end_date = pd.to_datetime(datetime_array[-1]).strftime('%Y%m%d')
-    file_name = f'm3_{vpu_name}_{start_date}_{end_date}.nc'
+
+    file_name = f'm3_{vpu_name}.nc'
+    if dates_in_filename:
+        start_date = pd.to_datetime(datetime_array[0]).strftime('%Y%m%d')
+        end_date = pd.to_datetime(datetime_array[-1]).strftime('%Y%m%d')
+        file_name = file_name.replace('.nc', f'_{start_date}_{end_date}.nc')
     if file_label is not None:
-        file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
+        file_name = file_name.replace('.nc', f'_{file_label}.nc')
     inflow_file_path = os.path.join(inflow_dir, file_name)
     logging.debug(f'Writing inflow file to {inflow_file_path}')
 
