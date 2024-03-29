@@ -1,6 +1,5 @@
 import datetime
 import glob
-import logging
 import os
 import re
 
@@ -31,7 +30,6 @@ def _memory_check(size: int, dtype: type = np.float32, ram_buffer_percentage: fl
 
 
 def _cumulative_to_incremental(df) -> pd.DataFrame:
-    logging.info('Converting to incremental values')
     return pd.DataFrame(
         np.vstack([df.values[0, :], np.diff(df.values, axis=0)]),
         index=df.index,
@@ -40,7 +38,6 @@ def _cumulative_to_incremental(df) -> pd.DataFrame:
 
 
 def _incremental_to_cumulative(df) -> pd.DataFrame:
-    logging.info('Converting to cumulative values')
     return df.cumsum()
 
 
@@ -121,30 +118,24 @@ def create_inflow_file(lsm_data: str,
         if len(possible_matches) == 0:
             raise ValueError(f"No {var_name} variable found in LSM data. Check dataset or specify {var_name}_var")
         if len(possible_matches) == 1:
-            logging.info(f'Found {var_name} variable: "{possible_matches[0]}"')
             return possible_matches[0]
         elif len(possible_matches) > 1:
             raise ValueError(f"Multiple {var_name} variables found. Specify with {var_name}_var: {possible_matches}")
         else:
             raise ValueError(f"Unexpected error finding {var_name} variable. Check dataset or specify {var_name}_var")
 
-    logging.info(f'Opening LSM files {lsm_data[0] if type(lsm_data) == list else lsm_data}')
     with xr.open_mfdataset(lsm_data) as ds:
         # Select the variable names
         if not runoff_var:
-            logging.warning('Runoff variable not given. Guessing from default names')
             runoff_var = [x for x in ['ro', 'RO', 'runoff', 'RUNOFF'] if x in ds.variables]
             runoff_var = _guess_variable_name('runoff', runoff_var)
         if not x_var:
-            logging.warning('X variable not given. Guessing from default names.')
             x_var = [x for x in ['x', 'lon', 'longitude', 'LONGITUDE', 'LON'] if x in ds.variables]
             x_var = _guess_variable_name('x', x_var)
         if not y_var:
-            logging.warning('Y variable not given. Guessing from default names.')
             y_var = [x for x in ['y', 'lat', 'latitude', 'LATITUDE', 'LAT'] if x in ds.variables]
             y_var = _guess_variable_name('y', y_var)
         if not time_var:
-            logging.warning('Time variable not given. Guessing from default names.')
             time_var = [x for x in ['time', 'TIME', ] if x in ds.variables]
             time_var = _guess_variable_name('time', time_var)
 
@@ -160,7 +151,6 @@ def create_inflow_file(lsm_data: str,
             if not len(weight_table):
                 raise FileNotFoundError(f'Could not find a weight table in {input_dir} with shape {dataset_shape}')
             weight_table = weight_table[0]
-            logging.info(f'Using weight table: {weight_table}')
         # check that the grid dimensions are found in the weight table filename
         matches = re.findall(r'(\d+)x(\d+)', weight_table)[0]
         if len(matches) != 2:
@@ -169,8 +159,6 @@ def create_inflow_file(lsm_data: str,
             raise ValueError(f"{weight_table} dimensions don't match the input dataset shape: {dataset_shape}")
 
         # load in weight table and get some information
-        logging.debug(f'Using weight table: {weight_table}')
-        logging.debug(f'Using comid_lat_lon_z: {comid_lat_lon_z}')
         weight_df = pd.read_csv(weight_table)
         comid_df = pd.read_csv(comid_lat_lon_z)
 
@@ -201,7 +189,7 @@ def create_inflow_file(lsm_data: str,
         conversion_factor = 1
         units = ds.attrs.get('units', False)
         if not units:
-            logging.warning("No units attribute found. Assuming meters")
+            ...
         elif ds.attrs['units'] == 'm':
             conversion_factor = 1
         elif ds.attrs['units'] == 'mm':
@@ -210,10 +198,8 @@ def create_inflow_file(lsm_data: str,
             raise ValueError(f"Unknown units: {ds.attrs['units']}")
 
         # get the time array from the dataset
-        logging.info('Reading Time values')
         datetime_array = ds[time_var].to_numpy()
 
-        logging.info('Reading Runoff values')
         if ds.ndim == 3:
             inflow_df = ds.values[:, lat_indices, lon_indices]
         elif ds.ndim == 4:
@@ -236,11 +222,8 @@ def create_inflow_file(lsm_data: str,
     # Check that all timesteps are the same
     time_diff = np.diff(datetime_array)
     if not np.all(time_diff == datetime_array[1] - datetime_array[0]):
-        logging.warning('Timesteps are not all uniform')
         if timestep is None:
-            logging.warning('Timesteps are not all uniform and a target timestep was not provided.')
             timestep = datetime_array[1] - datetime_array[0]
-            logging.warning(f'Assuming the first timedelta is the target: {timestep.astype("timedelta64[s]")}')
         elif isinstance(timestep, datetime.timedelta):
             # Convert datetime timedelta to timedelta64[ns]
             timestep = np.timedelta64(timestep, 'ns')
@@ -254,7 +237,6 @@ def create_inflow_file(lsm_data: str,
         inflow_df = _cumulative_to_incremental(inflow_df)
 
     # Create output inflow netcdf data
-    logging.info("Writing inflows to file")
     os.makedirs(inflow_dir, exist_ok=True)
     datetime_array = inflow_df.index.to_numpy()
     start_date = pd.to_datetime(datetime_array[0]).strftime('%Y%m%d')
@@ -263,7 +245,6 @@ def create_inflow_file(lsm_data: str,
     if file_label is not None:
         file_name = f'm3_{vpu_name}_{start_date}_{end_date}_{file_label}.nc'
     inflow_file_path = os.path.join(inflow_dir, file_name)
-    logging.debug(f'Writing inflow file to {inflow_file_path}')
 
     with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
         # create dimensions
