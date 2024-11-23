@@ -214,10 +214,10 @@ def create_inflow_file(lsm_data: str,
         datetime_array = ds[time_var].to_numpy()
 
         logging.info('Reading Runoff values')
+        inflow_df = ds.isel({y_var:xr.DataArray(lat_indices), x_var:xr.DataArray(lon_indices)}).values
         if ds.ndim == 3:
-            inflow_df = ds.values[:, lat_indices, lon_indices]
+            pass           
         elif ds.ndim == 4:
-            inflow_df = ds.values[:, :, lat_indices, lon_indices]
             inflow_df = np.where(np.isnan(inflow_df[:, 0, :]), inflow_df[:, 1, :], inflow_df[:, 0, :]),
         else:
             raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
@@ -265,7 +265,7 @@ def create_inflow_file(lsm_data: str,
     inflow_file_path = os.path.join(inflow_dir, file_name)
     logging.debug(f'Writing inflow file to {inflow_file_path}')
 
-    with nc.Dataset(inflow_file_path, "w", format="NETCDF3_CLASSIC") as inflow_nc:
+    with nc.Dataset(inflow_file_path, "w") as inflow_nc:
         # create dimensions
         inflow_nc.createDimension('time', datetime_array.shape[0])
         inflow_nc.createDimension('rivid', sorted_rivid_array.shape[0])
