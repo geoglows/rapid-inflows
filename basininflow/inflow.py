@@ -218,7 +218,7 @@ def create_inflow_file(lsm_data: str,
         if ds.ndim == 3:
             pass           
         elif ds.ndim == 4:
-            inflow_df = np.where(np.isnan(inflow_df[:, 0, :]), inflow_df[:, 1, :], inflow_df[:, 0, :]),
+            inflow_df = np.where(np.isnan(inflow_df[:, 0, :]), inflow_df[:, 1, :], inflow_df[:, 0, :])
         else:
             raise ValueError(f"Unknown number of dimensions: {ds.ndim}")
 
